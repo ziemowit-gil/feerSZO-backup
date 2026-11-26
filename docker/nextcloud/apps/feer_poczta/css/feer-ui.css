@@ -1,0 +1,44 @@
+/*
+ * feer_poczta — wygląd całej chmury: białe tła (UX + WCAG 2.2 AA).
+ * Nextcloud daje kaflom i panelom tło białe w 80% na grafice (--color-main-background-blur) — tekst traci kontrast,
+ * a dni spoza miesiąca w Kalendarzu są szare (#ededed). Tu: pełna biel, delikatna ramka zamiast szarości.
+ * Tryb ciemny bez zmian (reguły tylko dla jasnego motywu).
+ */
+body:not([data-themes*="dark"]) {
+	--color-main-background-blur: #ffffff;
+}
+
+/* Pulpit: kafle na pełnej bieli, z ramką i cieniem zamiast przezroczystości */
+body:not([data-themes*="dark"]) #app-dashboard .panel,
+body:not([data-themes*="dark"]) #app-dashboard .panels > div {
+	background-color: #ffffff !important;
+	-webkit-backdrop-filter: none !important;
+	backdrop-filter: none !important;
+	border: 1px solid #E2E8F0;
+	box-shadow: 0 2px 10px rgba(15, 23, 42, .08);
+	--color-text-maxcontrast: #4B5563;
+}
+body:not([data-themes*="dark"]) #app-dashboard .edit-panels { background-color: #ffffff !important; color: #111827 !important; }
+
+/* Panele aplikacji (nawigacja, treść, panel boczny) — pełna biel zamiast półprzezroczystej */
+body:not([data-themes*="dark"]) #app-navigation,
+body:not([data-themes*="dark"]) .app-navigation,
+body:not([data-themes*="dark"]) #app-content,
+body:not([data-themes*="dark"]) #app-sidebar,
+body:not([data-themes*="dark"]) .app-sidebar {
+	background-color: #ffffff;
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+/* Kalendarz: dni spoza bieżącego miesiąca białe, wyróżnione tylko szarym numerem dnia (4,8:1) */
+body:not([data-themes*="dark"]) .fc-daygrid-day.fc-day.fc-day-other,
+body:not([data-themes*="dark"]) .fc .fc-daygrid-day.fc-day-today.fc-day-other {
+	background-color: #ffffff !important;
+	border: 1px solid #E5E7EB !important;
+}
+body:not([data-themes*="dark"]) .fc-day-other .fc-daygrid-day-number { color: #6B7280 !important; }
+body:not([data-themes*="dark"]) .fc .fc-scrollgrid,
+body:not([data-themes*="dark"]) .fc .fc-col-header-cell,
+body:not([data-themes*="dark"]) .fc .fc-timegrid-slot,
+body:not([data-themes*="dark"]) .fc .fc-daygrid-day { background-color: #ffffff; }
