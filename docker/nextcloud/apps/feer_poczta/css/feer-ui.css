@@ -499,3 +499,36 @@ body:not([data-themes*="dark"]) .contacts-list .list-item__wrapper--active .list
 .app-full .app-full__actions button.button-vue--vue-primary:hover { background: #0F4AB8 !important; }
 .app-full .invitees-list__header__title__text { font-size: 17px !important; }
 @media (max-width: 1024px) { .app-full .app-full-body__right { margin-top: 18px; } }
+
+/* ── Aktywność (WCAG 2.2 AA + czytelność) ── */
+.activity-group__heading, .activity-section > h2, .activity-section h3 { color: #111827 !important; font-size: 18px !important; font-weight: 700 !important; }
+.activity-entry { padding-block: 8px; border-bottom: 1px solid #E5E7EB; }
+.activity-entry__content__subject, .activity-entry__content__subject *, .activitysubject { color: #111827 !important; font-size: 15px; line-height: 1.5; }
+.activity-entry__content__message, .activitymessage, .activity-entry__date, .activitytime, .activity-entry .timestamp { color: #4B5563 !important; opacity: 1 !important; }
+.activity-entry a, .activity-entry__content a, .activitysubject a { color: #1559D6 !important; text-decoration: underline !important; text-underline-offset: 2px; font-weight: 600; }
+.activity-entry__icon, .activity-icon, .activity-entry__icon img { opacity: 1 !important; filter: none !important; }
+.activity-entry__actions button { min-width: 44px; min-height: 44px; }
+.activity-app__new-activities-indicator, .activity-app__new-activities-indicator button {
+	background: #1559D6 !important; color: #ffffff !important; font-weight: 600; border-radius: 999px !important;
+}
+.activity-app__end-of-feed, .activity-app__empty-content .empty-content__description, .activity__empty-content { color: #374151 !important; }
+/* filtry */
+.activity-filter input, .activity-filter .vs__dropdown-toggle, .activity-filter__search input {
+	min-height: 44px; border: 1px solid #64748B !important; border-radius: 10px !important; color: #111827 !important; font-size: 15px;
+}
+.activity-filter .vs__dropdown-toggle input, .activity-filter .vs__search { border: 0 !important; min-height: 0 !important; }
+.activity-filter label, .activity-frequency__label { color: #111827 !important; font-weight: 600; }
+/* mapa ciepła: odcienie o rosnącym kontraście + ramka (nie tylko kolor), wybrana kratka obramowana */
+.activity-heatmap__cell { border: 1px solid #94A3B8 !important; }
+.activity-heatmap__cell--void { background: #ffffff !important; }
+.activity-heatmap__cell--level-1 { background: #C7DAFE !important; }
+.activity-heatmap__cell--level-2 { background: #7FA8F5 !important; }
+.activity-heatmap__cell--level-3 { background: #3B76E8 !important; }
+.activity-heatmap__cell--level-4 { background: #1347B0 !important; border-color: #0B2F7A !important; }
+.activity-heatmap__cell--selected { outline: 3px solid #111827 !important; outline-offset: 1px; }
+.activity-heatmap__month-label, .activity-heatmap__weekday, .activity-heatmap__legend-caption, .activity-heatmap__summary { color: #374151 !important; }
+.activity-heatmap__tooltip { background: #111827 !important; color: #ffffff !important; }
+/* fokus */
+.activity-app :focus-visible, .activity-entry :focus-visible, .activity-filter :focus-visible, .activity-heatmap :focus-visible, .activity-section :focus-visible {
+	outline: 3px solid #1559D6 !important; outline-offset: 2px !important;
+}
