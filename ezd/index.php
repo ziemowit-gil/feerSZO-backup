@@ -73,6 +73,22 @@ try {
 } catch (\Throwable $e) { $nowe_pisma_jedn = []; }
 $nowe_pisma_jedn_cnt = count($nowe_pisma_jedn);
 
+// „Mój zespół” (Struktura › Zespoły): otwarte koszulki osób z moich zespołów (bez moich — te są w „Moje koszulki”);
+// ezd_sprawy_all() pilnuje dostępu tak samo jak lista koszulek.
+$team_sprawy = []; $team_sprawy_cnt = 0; $has_teams = false;
+if (module_enabled('org_enabled')) {
+    require_once dirname(__DIR__) . '/modules/teams/lib/TeamService.php';
+    $mates = array_values(array_diff(TeamService::getTeammateIds($user_id), [$user_id]));
+    $has_teams = (bool)TeamService::getUserTeamIds($user_id);
+    if ($mates) {
+        $team_all = array_values(array_filter(ezd_sprawy_all(['owner_ids' => $mates], $user_id),
+            fn($s) => ($s['status'] ?? '') !== 'closed' && (int)($s['owner_id'] ?? 0) !== $user_id && (int)($s['created_by'] ?? 0) !== $user_id));
+        usort($team_all, fn($a, $b) => strcmp((string)($a['deadline'] ?: '9999'), (string)($b['deadline'] ?: '9999')));
+        $team_sprawy_cnt = count($team_all);
+        $team_sprawy = array_slice($team_all, 0, 8);
+    }
+}
+
 $my_sprawy_cnt = (int)(db_one(
     "SELECT COUNT(*) c FROM ezd_sprawy s WHERE s.status!='closed' AND (s.owner_id=? OR s.created_by=?
      OR EXISTS (SELECT 1 FROM ezd_sprawa_users su WHERE su.sprawa_id=s.id AND su.user_id=?))",
@@ -562,6 +578,9 @@ include dirname(__DIR__) . '/includes/header.php';
       <div class="ezx-card tw-mb-4">
         <div class="tw-flex tw-overflow-x-auto tw-px-2 tw-border-b tw-border-solid tw-border-slate-100" role="tablist" aria-label="W toku">
           <button type="button" class="ezx-subtab" role="tab" :aria-selected="sub === 'cases' ? 'true' : 'false'" @click="sub = 'cases'"><i class="bi bi-folder2-open" aria-hidden="true"></i>Moje koszulki <span class="ezx-badge ezx-badge--blue"><?= $my_sprawy_cnt ?></span></button>
+          <?php if ($has_teams): ?>
+          <button type="button" class="ezx-subtab" role="tab" :aria-selected="sub === 'team' ? 'true' : 'false'" @click="sub = 'team'"><i class="bi bi-people-fill" aria-hidden="true"></i>Mój zespół <span class="ezx-badge ezx-badge--blue"><?= $team_sprawy_cnt ?></span></button>
+          <?php endif; ?>
           <button type="button" class="ezx-subtab" role="tab" :aria-selected="sub === 'docs' ? 'true' : 'false'" @click="sub = 'docs'"><i class="bi bi-envelope" aria-hidden="true"></i>Moje dokumenty <span class="ezx-badge ezx-badge--slate"><?= $my_pisma_cnt ?></span></button>
           <button type="button" class="ezx-subtab" role="tab" :aria-selected="sub === 'new' ? 'true' : 'false'" @click="sub = 'new'"><i class="bi bi-envelope-arrow-down" aria-hidden="true"></i>Nowe pisma <?php if ($nowe_pisma_jedn_cnt): ?><span class="ezx-badge ezx-badge--sky"><?= $nowe_pisma_jedn_cnt ?></span><?php endif; ?></button>
           <?php if ($ezd_mail_on): ?>
@@ -608,6 +627,29 @@ include dirname(__DIR__) . '/includes/header.php';
           <?php endif; ?>
           <div class="tw-px-4 tw-py-2.5 tw-border-t tw-border-solid tw-border-slate-100"><a href="<?= APP_URL ?>/ezd/sprawy/index.php?mine=1" class="ezx-more">Wszystkie moje koszulki →</a></div>
         </div>
+
+        <!-- Mój zespół: koszulki osób z moich zespołów -->
+        <?php if ($has_teams): ?>
+        <div x-show="sub === 'team'" role="tabpanel" x-cloak>
+          <?php if ($team_sprawy): foreach ($team_sprawy as $s): $over = !empty($s['deadline']) && $s['deadline'] < $today && empty($s['ciagla']);
+                $etap_meta = ezd_etap_meta($s['etap'] ?: 'wszczeta'); ?>
+          <div class="ezx-item">
+            <span class="ezx-ico tw-bg-blue-50 tw-text-blue-700" aria-hidden="true"><i class="bi bi-folder2-open"></i></span>
+            <div class="tw-flex-1 tw-min-w-0">
+              <a href="<?= APP_URL ?>/ezd/sprawy/view.php?id=<?= (int)$s['id'] ?>" class="ezx-title tw-block tw-truncate"><?= h($s['title']) ?></a>
+              <div class="ezx-muted"><span class="ezx-znak"><?= h($s['znak_sprawy']) ?></span> · <i class="bi bi-person tw-mr-0.5" aria-hidden="true"></i><span class="visually-hidden">Właściciel: </span><?= h($s['owner_name'] ?? '—') ?>
+                <?php if (!empty($s['ciagla'])): ?> · <span class="tw-text-sky-600">ciągła</span>
+                <?php elseif (!empty($s['deadline'])): ?> · <span class="<?= $over ? 'tw-text-rose-600 tw-font-semibold' : '' ?>">termin <?= date_pl($s['deadline']) ?><?= $over ? ' · po terminie' : '' ?></span><?php endif; ?>
+              </div>
+            </div>
+            <span class="ezx-badge ezx-badge--blue"><?= h($etap_meta['label'] ?? '') ?></span>
+          </div>
+          <?php endforeach; else: ?>
+          <div class="tw-text-center tw-py-8 ezx-muted">Osoby z Twoich zespołów nie mają otwartych koszulek, które możesz zobaczyć</div>
+          <?php endif; ?>
+          <div class="tw-px-4 tw-py-2.5 tw-border-t tw-border-solid tw-border-slate-100"><a href="<?= APP_URL ?>/ezd/sprawy/index.php?myteam=1" class="ezx-more">Wszystkie koszulki zespołu →</a></div>
+        </div>
+        <?php endif; ?>
 
         <!-- Moje dokumenty (pisma, których jestem referentem) -->
         <div x-show="sub === 'docs'" role="tabpanel" x-cloak>
