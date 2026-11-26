@@ -207,7 +207,7 @@ if ($noRandom) $mSel = 'own';
       <?php if ($mode === 'user'): /* zalogowany: kreator 1) które hasło 2) nowe hasło 3) gotowe — bez kodu (NoweHasloController::changePost) */
         $initSys = array_column($initial['rows'] ?? [], 'system');
         $cards = [
-          'sso'  => ['icon' => 'bi-cloud-check', 'title' => 'Logowanie jednokrotne (Logto) i chmura plików', 'ok' => $okSso,
+          'sso'  => ['icon' => 'bi-cloud-check', 'title' => 'Logowanie jednokrotne i chmura plików', 'ok' => $okSso,
                      'login' => $acc ? $acc['login'] : '', 'start' => in_array('sso', $initSys, true),
                      'desc' => 'Hasło, które wpisujesz na niebieskiej stronie logowania logto.feer.org.pl („Zaloguj się do usług Fundacji FEER”): SZO, chmura plików i inne aplikacje Fundacji.', 'none' => 'Nie masz jeszcze tego konta.'],
           'mail' => ['icon' => 'bi-envelope', 'title' => 'Poczta', 'ok' => $okMail,
@@ -216,7 +216,7 @@ if ($noRandom) $mSel = 'own';
           // jedno hasło do wszystkiego (polecenie 2026-11-27): tylko gdy są oba konta, w kroku 2 trzy potwierdzenia
           'all'  => ['icon' => 'bi-key', 'title' => 'Jedno hasło do wszystkiego', 'ok' => $okSso && $okMail,
                      'login' => $acc ? $acc['login'] : '', 'start' => false,
-                     'desc' => 'To samo hasło do poczty, SZO, logowania jednokrotnego (Logto) i chmury. Wygodniej, ale mniej bezpiecznie.',
+                     'desc' => 'To samo hasło do poczty, SZO, logowania jednokrotnego i chmury. Wygodniej, ale mniej bezpiecznie.',
                      'none' => 'Potrzebne są konto logowania jednokrotnego i skrzynka pocztowa.'],
         ];
         $done = $flash && $flash['type'] === 'success';
@@ -274,7 +274,7 @@ if ($noRandom) $mSel = 'own';
             <fieldset class="nh-set nh-all" id="nhAll" hidden>
               <legend>Jedno hasło do wszystkiego: potwierdź trzy razy</legend>
               <p class="dm-help">To hasło zadziała w poczcie, SZO, logowaniu jednokrotnym i chmurze plików. Bez imienia, nazwiska i loginu.</p>
-              <label class="dm-chk"><input type="checkbox" name="all_ok1" value="1" id="nhAll1"> <span>1 z 3. Chcę mieć to samo hasło do poczty, SZO, logowania jednokrotnego (Logto) i chmury plików.</span></label>
+              <label class="dm-chk"><input type="checkbox" name="all_ok1" value="1" id="nhAll1"> <span>1 z 3. Chcę mieć to samo hasło do poczty, SZO, logowania jednokrotnego i chmury plików.</span></label>
               <label class="dm-chk"><input type="checkbox" name="all_ok2" value="1" id="nhAll2"> <span>2 z 3. Rozumiem, że kto pozna to hasło, dostanie się do mojej poczty, SZO i wszystkich aplikacji Fundacji naraz.</span></label>
               <label class="dm-chk"><input type="checkbox" name="all_ok3" value="1" id="nhAll3"> <span>3 z 3. Nie podam tego hasła nikomu i nie zapiszę go w miejscu, które widzą inni.</span></label>
               <p class="nh-all__err" id="nhAllErr" role="alert" hidden>Zaznacz wszystkie trzy potwierdzenia albo wróć i wybierz osobne hasła.</p>

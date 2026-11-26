@@ -28,7 +28,7 @@ if (($__raOnly ?? '') === 'result') {
   <dl class="row small mb-0">
     <dt class="col-sm-4 fw-normal">Login</dt><dd class="col-sm-8 mb-1"><code><?= h((string)($r['username'] ?? '')) ?></code><?php if (!empty($r['cloud_uid']) && $r['cloud_uid'] !== ($r['username'] ?? '')): ?> (w chmurze: <code><?= h((string)$r['cloud_uid']) ?></code>)<?php endif; ?></dd>
     <?php if (!empty($r['password'])): ?><dt class="col-sm-4 fw-normal">Hasło</dt><dd class="col-sm-8 mb-1"><code><?= h((string)$r['password']) ?></code></dd><?php endif; ?>
-    <dt class="col-sm-4 fw-normal">Logowanie jednokrotne (Logto)</dt><dd class="col-sm-8 mb-1"><?= ($r['logto'] ?? '') === 'password' ? 'to samo nowe hasło' : 'brak konta' ?></dd>
+    <dt class="col-sm-4 fw-normal">Logowanie jednokrotne</dt><dd class="col-sm-8 mb-1"><?= ($r['logto'] ?? '') === 'password' ? 'to samo nowe hasło' : 'brak konta' ?></dd>
     <dt class="col-sm-4 fw-normal">Chmura</dt><dd class="col-sm-8 mb-1"><?= h((string)(($r['cloud'] ?? '') ?: '—')) ?></dd>
     <dt class="col-sm-4 fw-normal">SMS</dt><dd class="col-sm-8 mb-0"><?= h((string)(($r['sms'] ?? '') ?: 'nie wysyłano')) ?></dd>
   </dl>
@@ -50,7 +50,7 @@ $__raSms    = false;
 try { require_once dirname(__DIR__, 3) . '/includes/sms.php'; $__raSms = function_exists('sms_channel_ready') && sms_channel_ready() && $__raPerson['phone'] !== ''; } catch (\Throwable $e) {}
 $__raMgmt   = $__raIsPerson ? '' : rtrim(APP_URL, '/') . '/tozsamosc/access.php?type=' . rawurlencode((string)$__raType) . '&id=' . (int)$__raId . '#sso';
 $__raMid    = 'raModal' . preg_replace('/[^a-z]/', '', (string)$__raType) . (int)$__raId;
-$__raWhat   = trim(($__raLogto ? 'do logowania jednokrotnego (Logto, logto.feer.org.pl)' : '') . ($__raLogto && $__raCloud ? ' i ' : '') . ($__raCloud ? 'do chmury plików' : ''));
+$__raWhat   = trim(($__raLogto ? 'do logowania jednokrotnego' : '') . ($__raLogto && $__raCloud ? ' i ' : '') . ($__raCloud ? 'do chmury plików' : ''));
 ?>
 <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#<?= h($__raMid) ?>">
   <i class="bi bi-key" aria-hidden="true"></i> <span>Resetuj dane dostępowe</span>
@@ -72,7 +72,7 @@ $__raWhat   = trim(($__raLogto ? 'do logowania jednokrotnego (Logto, logto.feer.
         <dl class="row small mb-3">
           <dt class="col-sm-5 fw-normal text-body-secondary">Osoba</dt><dd class="col-sm-7 mb-1"><?= h($__raPerson['name'] ?: '—') ?></dd>
           <dt class="col-sm-5 fw-normal text-body-secondary">Login (e-mail)</dt><dd class="col-sm-7 mb-1"><?= $__raEmail !== '' ? h($__raEmail) : '<span class="text-danger-emphasis">brak e-maila</span>' ?></dd>
-          <dt class="col-sm-5 fw-normal text-body-secondary">Logowanie jednokrotne (Logto)</dt><dd class="col-sm-7 mb-1"><?= $__raLogto ? 'jest' . (!empty($__raAcc['logto_username']) ? ' (<code>' . h((string)$__raAcc['logto_username']) . '</code>)' : '') : 'brak konta' ?></dd>
+          <dt class="col-sm-5 fw-normal text-body-secondary">Logowanie jednokrotne</dt><dd class="col-sm-7 mb-1"><?= $__raLogto ? 'jest' . (!empty($__raAcc['logto_username']) ? ' (<code>' . h((string)$__raAcc['logto_username']) . '</code>)' : '') : 'brak konta' ?></dd>
           <dt class="col-sm-5 fw-normal text-body-secondary">Chmura plików</dt><dd class="col-sm-7 mb-0"><?= $__raCloud ? 'login <code>' . h((string)$__raAcc['cloud_uid']) . '</code>' : 'brak konta' ?></dd>
         </dl>
         <?php if ($__raHas): ?>
