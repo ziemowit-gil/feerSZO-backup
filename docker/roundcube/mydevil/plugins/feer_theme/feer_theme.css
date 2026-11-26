@@ -1124,3 +1124,27 @@ a, .link { color: var(--feer-link); }
 /* Błędy przy polach (np. filtr, tożsamość) */
 .propform .is-invalid, .propform input.error { border: 2px solid #B91C1C !important; }
 .propform .invalid-feedback, .propform .error-msg { color: #B91C1C !important; font-weight: 600; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WCAG 2.2 AA — strona logowania poczty (2026-11-26)
+   Pomiary: ramki pól #cbd5e1 1,5:1 (wymóg 3:1), przycisk i linki #1E6DFF 4,48:1 (wymóg 4,5:1).
+   ══════════════════════════════════════════════════════════════════════════ */
+body.task-login #login-form input.form-control,
+body.task-login #login-form .input-group-text { border-color: #64748B !important; min-height: 48px; }
+body.task-login #login-form input.form-control:focus { border-color: #1559D6 !important; box-shadow: 0 0 0 3px rgba(21, 89, 214, .25) !important; }
+body.task-login #login-form .input-group-text { color: #374151 !important; }
+body.task-login #rcmloginsubmit { background-color: #1559D6 !important; border-color: #1559D6 !important; min-height: 48px; }
+body.task-login #rcmloginsubmit:hover { background-color: #0F4AB8 !important; border-color: #0F4AB8 !important; }
+body.task-login .feer-login-recovery a, body.task-login #login-footer a { color: #1559D6 !important; text-decoration: underline !important; text-underline-offset: 3px; }
+body.task-login .feer-login-title { margin: 0 0 .35rem; }
+/* „Nie wylogowuj mnie”: ramka przełącznika ≥ 3:1, włączony w ciemniejszym błękicie, większy cel */
+body.task-login #login-form .custom-switch .custom-control-label::before { border-color: #64748B !important; }
+body.task-login #login-form .custom-switch .custom-control-label::after { background-color: #64748B; }
+body.task-login #login-form .custom-control-input:checked ~ .custom-control-label::before { background-color: #1559D6 !important; border-color: #1559D6 !important; }
+body.task-login #login-form .custom-control-input:checked ~ .custom-control-label::after { background-color: #ffffff; }
+body.task-login #login-form .custom-switch { min-height: 44px; display: flex; align-items: center; }
+/* Komunikat o błędzie logowania: ciemny tekst, czerwony pasek, nie tylko kolor (ikona) */
+body.task-login #messagestack div.error:before { content: "\f071"; font-family: "Icons", "Font Awesome 5 Free"; font-weight: 900; color: #B91C1C; margin-inline-end: .5em; }
+/* Ciemny tryb: linki i przycisk czytelne na ciemnym tle */
+html.dark-mode body.task-login .feer-login-recovery a, html.dark-mode body.task-login #login-footer a { color: #93C5FD !important; }
+html.dark-mode body.task-login #login-form input.form-control, html.dark-mode body.task-login #login-form .input-group-text { border-color: #94A3B8 !important; }

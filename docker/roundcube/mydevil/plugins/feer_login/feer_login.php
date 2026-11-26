@@ -64,7 +64,9 @@ class feer_login extends rcube_plugin
         $html = str_replace('id="rcmloginuser"', 'id="rcmloginuser" spellcheck="false" inputmode="email"', $html);
 
         $intro = '<div class="feer-login-intro">'
-            . '<h1 class="feer-login-title">Poczta FEER</h1>'
+            // Roundcube ma już ukryty <h1 class="voice">„Poczta FEER Zaloguj”</h1> — widoczny tytuł bez drugiego h1
+            // (czytnik ekranu nie ogłasza nazwy dwa razy).
+            . '<p class="feer-login-title" aria-hidden="true">Poczta FEER</p>'
             . '<p class="feer-login-hint" id="feer-login-hint">Adres @feer.org.pl albo @stud.feer.org.pl. '
             . 'Sam login, np. jan.kowalski, oznacza @feer.org.pl.</p>'
             . '</div>';
