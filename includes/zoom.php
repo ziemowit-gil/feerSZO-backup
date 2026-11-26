@@ -257,6 +257,32 @@ class ZoomAPI {
     }
 
     /**
+     * Spotkanie z terminem (typ 2) — np. rezerwacja z Kalendarza chmury (api/internal/nc_zoom_meeting.php).
+     * $start_utc: 'Y-m-d\TH:i:s\Z'. Zwraca meeting_id, join_url, password.
+     */
+    public function create_scheduled_meeting(string $topic, string $start_utc, int $duration_min, string $agenda = ''): array {
+        $body = [
+            'topic'      => mb_substr($topic, 0, 200),
+            'type'       => 2,
+            'start_time' => $start_utc,
+            'duration'   => max(5, $duration_min),
+            'timezone'   => 'Europe/Warsaw',
+            'settings'   => [
+                'host_video' => true, 'participant_video' => true, 'join_before_host' => true,
+                'mute_upon_entry' => false, 'approval_type' => 2, 'audio' => 'both', 'auto_recording' => 'none',
+                'waiting_room' => false,
+            ],
+        ];
+        if ($agenda !== '') $body['agenda'] = mb_substr($agenda, 0, 1900);
+        $data = $this->post('/users/' . rawurlencode($this->userId) . '/meetings', $body);
+        return [
+            'meeting_id' => (string)($data['id'] ?? ''),
+            'join_url'   => (string)($data['join_url'] ?? ''),
+            'password'   => (string)($data['password'] ?? ''),
+        ];
+    }
+
+    /**
      * Aktualizuje alternative_hosts istniejącego spotkania.
      *
      * @return bool  false gdy spotkanie nie istnieje (kod 3001 — należy regenerować link),

@@ -8,6 +8,7 @@ use OCA\FeerPoczta\Dashboard\SzoWidget;
 use OCA\FeerPoczta\Dashboard\ZespolyWidget;
 use OCA\FeerPoczta\Listener\SharingA11yListener;
 use OCA\FeerPoczta\Listener\UiStyleListener;
+use OCA\FeerPoczta\Listener\ZoomBookingListener;
 use OCA\Files\Event\LoadAdditionalScriptsEvent;
 use OCA\Files\Event\LoadSidebar;
 use OCP\AppFramework\App;
@@ -31,6 +32,8 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(LoadAdditionalScriptsEvent::class, SharingA11yListener::class);
 		// Cała chmura: białe tła (css/feer-ui.css).
 		$context->registerEventListener(BeforeTemplateRenderedEvent::class, UiStyleListener::class);
+		// Kalendarz › harmonogram spotkań z lokalizacją „Zoom”: link Zoom z SZO w wydarzeniu i e-mailu potwierdzającym.
+		$context->registerEventListener('OCA\\Calendar\\Events\\BeforeAppointmentBookedEvent', ZoomBookingListener::class);
 	}
 
 	public function boot(IBootContext $context): void {

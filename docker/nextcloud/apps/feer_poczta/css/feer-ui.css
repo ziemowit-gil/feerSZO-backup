@@ -224,3 +224,35 @@ body:not([data-themes*="dark"]) .fc-timeGridDay-view .fc-timegrid-col.fc-day-tod
 .booking-details label, .appointment-details label { font-weight: 600; color: #111827; }
 /* reklama „Nextcloud – Załóż własne bezpłatne konto” pod stroną rezerwacji */
 body:has(.booking) footer, body:has(.appointment-booking-confirmation) footer { display: none !important; }
+
+/* ── Pliki: lista i polecane pliki (WCAG 2.2 AA) ──
+ * Kolor FEER #1E6DFF ma na białym 4,48:1 — linki/teksty w #1559D6 (6,1:1); szare opisy #4B5563 (7,6:1);
+ * fokus 3 px; przyciski w wierszu ≥ 32 px (cel ≥ 24 px wg 2.5.8).
+ */
+body:not([data-themes*="dark"]) .files-list__row-sharing-status,
+body:not([data-themes*="dark"]) .files-list__row-sharing-status *,
+body:not([data-themes*="dark"]) .files-list__row-action-sharing-status,
+body:not([data-themes*="dark"]) .files-list__row-action-sharing-status * { color: #1559D6 !important; }
+body:not([data-themes*="dark"]) .files-list__row-size,
+body:not([data-themes*="dark"]) .files-list__row-mtime,
+body:not([data-themes*="dark"]) .files-list__row-size *,
+body:not([data-themes*="dark"]) .files-list__row-mtime *,
+body:not([data-themes*="dark"]) .files-list__row-name-ext,
+body:not([data-themes*="dark"]) .files-list__footer,
+body:not([data-themes*="dark"]) .recommended-file__subline,
+body:not([data-themes*="dark"]) .files-list__header-recommendations .subline { color: #4B5563 !important; opacity: 1 !important; }
+.files-list__row-actions button, .files-list__row-actions .action-item__menutoggle,
+.files-list__row-action-sharing-status { min-width: 32px; min-height: 32px; }
+.files-list :focus-visible, .files-list__row :focus-visible, .app-content-vue :focus-visible,
+.files-list__filters :focus-visible, .files-list__header :focus-visible {
+	outline: 3px solid #1559D6 !important; outline-offset: 2px !important; border-radius: 6px;
+}
+body:not([data-themes*="dark"]) .files-list__row--active, body:not([data-themes*="dark"]) .files-list__row[data-cy-files-list-row-selected="true"] {
+	background-color: #EEF4FF !important;
+}
+body:not([data-themes*="dark"]) .files-list__row:hover { background-color: #F5F8FF !important; }
+body:not([data-themes*="dark"]) .files-list__row td { border-bottom-color: #E5E7EB !important; }
+/* nagłówek kolumn i filtry: wyraźniejszy tekst */
+body:not([data-themes*="dark"]) .files-list__column-sort-button, body:not([data-themes*="dark"]) .files-list__thead th { color: #374151 !important; }
+/* checkboxy w liście: wyraźna ramka (1.4.11) */
+body:not([data-themes*="dark"]) .files-list .checkbox-radio-switch__icon svg { color: #1559D6 !important; }
