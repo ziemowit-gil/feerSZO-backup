@@ -170,6 +170,22 @@ final class TeamService
         return $out;
     }
 
+    /** Zespół i wszystkie jego podzespoły (w głąb), z ochroną przed pętlą. */
+    public static function withDescendants(int $teamId): array
+    {
+        self::migrate();
+        if ($teamId <= 0) return [];
+        $out = [$teamId => true]; $queue = [$teamId];
+        while ($queue) {
+            $id = array_shift($queue);
+            foreach (db_all("SELECT id FROM task_teams WHERE parent_id=?", [$id]) as $r) {
+                $c = (int)$r['id'];
+                if (!isset($out[$c])) { $out[$c] = true; $queue[] = $c; }
+            }
+        }
+        return array_keys($out);
+    }
+
     /** Czy $candidateParent leży w poddrzewie $teamId (wtedy nie może zostać jego rodzicem). */
     public static function isDescendant(int $candidateParent, int $teamId): bool
     {

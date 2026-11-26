@@ -449,6 +449,8 @@ require_once dirname(__DIR__) . '/includes/cv_layout.php';
 
   <?php include dirname(dirname(__DIR__)) . '/includes/_contract_ezd_panel.php'; ?>
 
+  <?php include dirname(dirname(__DIR__)) . '/includes/_contract_teams_panel.php'; ?>
+
   <?php include dirname(dirname(__DIR__)) . '/includes/_contract_certs_ezd.php'; ?>
 
   <?php if ($kdok_docs): ?>

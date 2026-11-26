@@ -2330,6 +2330,8 @@ $_active_tab = ($_tab !== 'all' && isset($_tabs_def[$_tab])) ? $_tab : array_key
 
   <?php include dirname(dirname(__DIR__)) . '/includes/_contract_ezd_panel.php'; ?>
 
+  <?php include dirname(dirname(__DIR__)) . '/includes/_contract_teams_panel.php'; ?>
+
   <?php include dirname(__DIR__, 2) . '/modules/skierowania_badania/view/_umowaPanel.php'; ?>
 
   <!-- Zaświadczenia (EZD) -->

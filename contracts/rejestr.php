@@ -42,6 +42,7 @@ $filters = [
     'data_od' => trim($_GET['data_od'] ?? ''),
     'data_do' => trim($_GET['data_do'] ?? ''),
     'q'       => trim($_GET['q']       ?? ''),
+    'team'    => trim($_GET['team']    ?? ''),
 ];
 $any_filter = implode('', $filters) !== '';
 
@@ -130,6 +131,21 @@ include dirname(__DIR__) . '/includes/header.php';
           <input type="text" name="opiekun" class="form-control form-control-sm" style="max-width:11rem"
                  value="<?= h($filters['opiekun']) ?>" placeholder="Nazwisko…">
         </div>
+        <?php
+          require_once dirname(__DIR__) . '/modules/teams/lib/TeamService.php';
+          $_reg_teams = module_enabled('org_enabled') ? array_filter(TeamService::list(), fn($t) => $t['status'] !== 'archived' || (string)$t['id'] === $filters['team']) : [];
+          if ($_reg_teams || $filters['team'] !== ''): ?>
+        <div class="col-6 col-md-auto">
+          <label class="form-label small mb-1" for="reg-team">Zespół</label>
+          <select id="reg-team" name="team" class="form-select form-select-sm">
+            <option value="">— wszystkie —</option>
+            <option value="mine" <?= $filters['team'] === 'mine' ? 'selected' : '' ?>>Moje zespoły</option>
+            <?php foreach ($_reg_teams as $t): ?>
+            <option value="<?= (int)$t['id'] ?>" <?= $filters['team'] === (string)$t['id'] ? 'selected' : '' ?>><?= h($t['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <?php endif; ?>
         <div class="col-12 col-md-auto">
           <label class="form-label small mb-1">Data zawarcia</label>
           <div class="input-group input-group-sm">

@@ -19,6 +19,7 @@ $filters = [
     'data_od' => trim($_GET['data_od'] ?? ''),
     'data_do' => trim($_GET['data_do'] ?? ''),
     'q'       => trim($_GET['q']       ?? ''),
+    'team'    => trim($_GET['team']    ?? ''),
 ];
 $rejestr = contracts_registry_filter(all_contracts_registry(), $filters);
 
@@ -31,6 +32,8 @@ $filter_desc = array_filter([
     ($filters['data_od'] !== '' || $filters['data_do'] !== '')
         ? 'Zawarcie: ' . ($filters['data_od'] ?: '…') . ' – ' . ($filters['data_do'] ?: '…') : '',
     $filters['q']       !== '' ? 'Szukano: „' . $filters['q'] . '"' : '',
+    $filters['team']    !== '' ? 'Zespół: ' . ($filters['team'] === 'mine' ? 'moje zespoły'
+        : (db_one("SELECT name FROM task_teams WHERE id=?", [(int)$filters['team']])['name'] ?? '#' . $filters['team']) . ' (z podzespołami)') : '',
 ]);
 
 $org = defined('ORG_NAME') ? ORG_NAME : '';

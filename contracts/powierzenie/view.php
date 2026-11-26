@@ -384,6 +384,8 @@ $_badge_obieg += count(array_filter($edit_requests, fn($r) => $r['status'] === '
 
 <?php include dirname(dirname(__DIR__)) . '/includes/_contract_ezd_panel.php'; ?>
 
+<?php include dirname(dirname(__DIR__)) . '/includes/_contract_teams_panel.php'; ?>
+
 </div><!-- /tab-docs -->
 
 <!-- ═══════════════════ TAB 4 — OBIEG ═══════════════════ -->

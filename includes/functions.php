@@ -823,6 +823,16 @@ function contracts_registry_filter(array $rows, array $f): array {
     }
     if ($data_od !== '') $rows = array_filter($rows, fn($r) => ($r['data_zawarcia'] ?? '') !== '' && $r['data_zawarcia'] >= $data_od);
     if ($data_do !== '') $rows = array_filter($rows, fn($r) => ($r['data_zawarcia'] ?? '') !== '' && $r['data_zawarcia'] <= $data_do);
+    // Zespół (Struktura › Zespoły): id zespołu (razem z podzespołami) albo 'mine' = zespoły zalogowanej osoby.
+    $team = trim((string)($f['team'] ?? ''));
+    if ($team !== '') {
+        require_once dirname(__DIR__) . '/modules/teams/lib/TeamService.php';
+        $ids = $team === 'mine'
+            ? TeamService::getUserTeamIds((int)(current_user()['id'] ?? 0))
+            : TeamService::withDescendants((int)$team);
+        $keys = TeamService::contractKeysForTeams($ids);
+        $rows = array_filter($rows, fn($r) => isset($keys[$r['contract_type'] . ':' . $r['id']]));
+    }
     if ($q !== '') {
         $n = mb_strtolower($q);
         $rows = array_filter($rows, fn($r) =>
