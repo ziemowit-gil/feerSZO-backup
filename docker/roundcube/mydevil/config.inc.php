@@ -80,6 +80,7 @@ $config['plugins'] = [
     'thunderbird_labels',    // etykiety jak w Thunderbirdzie
     'persistent_login',      // „Zapamiętaj mnie” (tokeny, 7 dni)
     'twofactor_gauthenticator', // 2FA: kod TOTP z aplikacji (dobrowolne; GitHub b6afa8f44b)
+    'mimeshield',            // S/MIME: podpis, weryfikacja, szyfrowanie (takenek/mimeshield 1.0.3)
     'identity_select',       // tożsamość nadawcy wg adresu, na który przyszła wiadomość
     'archive',
     'zipdownload',

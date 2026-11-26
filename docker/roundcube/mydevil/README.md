@@ -91,6 +91,42 @@ show_additional_headers. Konfiguracje wtyczek: `plugin-config/` = `~/roundcube/c
   `~/roundcube/l10n/…` dowiązane do `app/plugins/nextcloud_attachments/l10n/pl_PL.inc`.
 - UWAGA: nextcloud_attachments trzyma hasło aplikacji chmury jawnym tekstem w preferencjach (baza).
 
+## Kalendarz i kontakty z chmury (feer_cloud_dav)
+
+Po połączeniu z chmurą (Login Flow, konto FEER/Logto) kalendarz przechodzi na `caldav`
+(nc.feer.org.pl, hasło aplikacji w adresie — kolab_dav_client czyta user:pass z URL-a), bez połączenia
+`database`. `calendar_driver` NIE może być w configu wtyczki calendar (jej load_config nadpisałby
+ustawienie). Kontakty: preset carddav „Chmura FEER” liczony z tego samego połączenia
+(`carddav.config.inc.php`), odświeżany raz na sesję i zaraz po połączeniu. Ustawienie własnych wtyczek:
+`feer_cloud_server` (nie `nextcloud_attachment_server`, które w task=calendar nie jest ładowane).
+
+## Książka „Fundacja FEER” (feer_directory)
+
+Osoby jak w /katalog SZO (`api/internal/rc_directory.php`, telefon tylko publiczny), tylko do odczytu,
+też w autouzupełnianiu; tylko skrzynki `feer_directory_hosts`. Kopia: `tmp/feer_directory.json` (1 h).
+Wymaga wdrożenia SZO z endpointem. LDAP (ldap-prod.feer.org.pl) nie istnieje — nie używać.
+
+## Zabezpieczenia
+
+- 2FA: twofactor_gauthenticator (GitHub alexandregz, commit b6afa8f44b, nie ma na Packagist) w
+  `~/roundcube/plugins-ext/`, dobrowolne, sekret szyfrowany des_key, „zaufaj na 30 dni”; zachęta po
+  logowaniu (feer_cloud_save, „Przypomnij za tydzień”, bez „nigdy”).
+- S/MIME: takenek/mimeshield 1.0.3 (composer). Klucz główny `secrets/mimeshield.key` (0400) —
+  KOPIA OSOBNO od kopii bazy. Tabele `mimeshield_*` założone ręcznie (`SQL/mysql.initial.sql`).
+  `bin/mimeshield.sh diag`: brak pakietu CA S/MIME (`mimeshield_ca_bundle`) → podpisy „niezaufane”;
+  OpenSSL w PHP 3.0.20 < 3.0.23 (CVE-2026-35189) — zależy od łatki MyDevil.
+- Foldery specjalne stałe (`dont_override`), archiwum dPoczty = `Archives`.
+- `ip_check = true`: zmiana IP kończy sesję („Błąd sesji bądź sesja wygasła”).
+- Link „Odzyskaj dostęp” → szo.feer.org.pl/nowehaslo (`feer_login_recovery_url`).
+
+## Composer — PUŁAPKA
+
+Instalator wtyczek (roundcube/plugin-installer) przepisuje `$config['plugins']` w
+`app/config/config.inc.php` (= nasz config przez dowiązanie) i gubi się na komentarzach z nawiasami —
+2026-11-26 dał HTTP 500 na ~2 min. Przed `composer require|install`: `mv config/config.inc.php
+config/config.inc.php.link; cp ~/roundcube/config/config.inc.php config/`, po: przywrócić dowiązanie,
+wtyczkę dopisać ręcznie, tabele z `SQL/mysql.initial.sql` wtyczki.
+
 ## Wygląd
 
 `feer_theme` = nakładka CSS na skin Elastic (barwy SZO, karta logowania z logo, tryb ciemny).
