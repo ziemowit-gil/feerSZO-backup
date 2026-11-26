@@ -12,6 +12,7 @@ require_once dirname(dirname(__DIR__)) . '/includes/approval.php';
 require_once dirname(dirname(__DIR__)) . '/includes/grants.php';
 require_once dirname(dirname(__DIR__)) . '/includes/address.php';
 require_once dirname(dirname(__DIR__)) . '/modules/contractIt/logic/ContractIt.php';   // panel „Konta i grupy IT”
+require_once dirname(dirname(__DIR__)) . '/modules/teams/lib/TeamService.php';
 
 require_role('admin', 'editor');
 require_module_enabled('contract_wolontariat', 'Umowy wolontariackie');
@@ -19,6 +20,10 @@ require_module_enabled('contract_wolontariat', 'Umowy wolontariackie');
 $TYPE  = 'wolontariat';
 $TABLE = 'umowy_wolontariat';
 $errors = [];
+
+// Zespoły do wskazania przy umowie (wymagane, gdy jakiekolwiek istnieją)
+$_wz_teams = [];
+try { if (module_enabled('org_enabled')) $_wz_teams = TeamService::selectable(); } catch (\Throwable $e) {}
 
 // ── Zapis ─────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -70,6 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$d['numer_umowy'])   $errors[] = 'Numer umowy jest wymagany.';
     if (!$d['imie_nazwisko']) $errors[] = 'Imię i nazwisko wolontariusza jest wymagane.';
+    if (!$d['org_unit_id'] || !isset(ContractIt::units()[$d['org_unit_id']])) $errors[] = 'Wskaż komórkę organizacyjną — pole jest wymagane.';
+    $_wz_team_id = (int)($_POST['team_id'] ?? 0);
+    if ($_wz_teams && !in_array($_wz_team_id, array_map('intval', array_column($_wz_teams, 'id')), true)) {
+        $errors[] = 'Wskaż zespół — pole jest wymagane.';
+    }
 
     if (!$errors) {
         // Generuj kod odzyskiwania (8 cyfr) tylko dla umów sprzed 01.06.2026
@@ -85,6 +95,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($plik) $d['plik_umowy'] = $plik;
 
         $id = db_insert($TABLE, $d);
+
+        // Komórka (Przypisanie) i zespół (umowa przypięta, wolontariusz w składzie)
+        try {
+            require_once dirname(dirname(__DIR__)) . '/modules/contract_links/lib/ContractLinks.php';
+            ContractLinks::save($TYPE, (int)$id, ['unit_id' => (int)$d['org_unit_id']], 'manual', (int)current_user()['id']);
+            if ($_wz_teams && $_wz_team_id > 0) TeamService::linkContractOnCreate($_wz_team_id, $TYPE, (int)$id, (int)current_user()['id']);
+        } catch (\Throwable $e) {}
 
         // Auto-przekazanie do akceptacji
         submit_for_approval($TYPE, $id, (int)current_user()['id'], $d['numer_umowy']);
@@ -406,15 +423,27 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       </div>
     </div>
     <div class="col-sm-6">
-      <label class="form-label fw-semibold" for="wz_org_unit_id">Jednostka organizacyjna</label>
-      <select name="org_unit_id" id="wz_org_unit_id" class="form-select" aria-describedby="wz_org_unit_help">
-        <option value="">— wybierz —</option>
+      <label class="form-label fw-semibold" for="wz_org_unit_id">Komórka organizacyjna <span class="text-danger" aria-hidden="true">*</span></label>
+      <select name="org_unit_id" id="wz_org_unit_id" class="form-select" aria-required="true" aria-describedby="wz_org_unit_help">
+        <option value="">— wybierz komórkę —</option>
         <?php foreach (ContractIt::units() as $__uid => $__un): ?>
         <option value="<?= (int)$__uid ?>"><?= h($__un) ?></option>
         <?php endforeach; ?>
       </select>
-      <div class="form-text" id="wz_org_unit_help">Od jednostki zależy grupa w chmurze plików.</div>
+      <div class="form-text" id="wz_org_unit_help">Wymagane. Od komórki zależy grupa w chmurze plików.</div>
     </div>
+    <?php if ($_wz_teams): ?>
+    <div class="col-sm-6">
+      <label class="form-label fw-semibold" for="wz_team_id">Zespół <span class="text-danger" aria-hidden="true">*</span></label>
+      <select name="team_id" id="wz_team_id" class="form-select" aria-required="true" aria-describedby="wz_team_help">
+        <option value="">— wybierz zespół —</option>
+        <?php foreach ($_wz_teams as $__t): ?>
+        <option value="<?= (int)$__t['id'] ?>"><?= h($__t['name']) ?><?= !empty($__t['unit_name']) ? ' (' . h($__t['unit_name']) . ')' : '' ?></option>
+        <?php endforeach; ?>
+      </select>
+      <div class="form-text" id="wz_team_help">Wymagane. Umowa trafi do zespołu, a wolontariusz (konto o tym e-mailu) do jego składu.</div>
+    </div>
+    <?php endif; ?>
     <div class="col-sm-6">
       <label class="form-label fw-semibold" for="wz_action_id">Działanie</label>
       <select name="action_id" id="wz_action_id" class="form-select">
@@ -839,6 +868,7 @@ document.getElementById('wz_projekt_program')?.addEventListener('input', functio
 
 // ── Konfiguracja wymagalności pól (z PHP) ────────────────────────────────────
 var WZ_FIELD_CFG = <?= json_encode($_wiz_field_cfg) ?>;
+WZ_FIELD_CFG.org_unit_id = 'required'; WZ_FIELD_CFG.team_id = 'required';
 
 // Pola per krok [krok] => [{name, label}]
 var WZ_STEP_FIELDS = {
@@ -864,6 +894,8 @@ var WZ_STEP_FIELDS = {
     {name:'miejsce_wolontariatu',   label:'Miejsce wolontariatu'},
     {name:'przedmiot_porozumienia', label:'Przedmiot porozumienia'},
     {name:'projekt_program',        label:'Projekt / program'},
+    {name:'org_unit_id',            label:'Komórka organizacyjna'},
+    {name:'team_id',                label:'Zespół'},
     {name:'plik_umowy', label:'Plik porozumienia', customCheck: function() {
       var el = document.querySelector('[name="plik_umowy"]');
       return el && el.files && el.files.length > 0;

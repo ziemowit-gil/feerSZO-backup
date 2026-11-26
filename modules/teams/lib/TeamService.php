@@ -313,6 +313,42 @@ final class TeamService
         return in_array($type, self::CONTRACT_TYPES, true);
     }
 
+    /** Zespoły do wyboru przy umowie (aktywne i zawieszone, bez archiwalnych), z nazwą jednostki. */
+    public static function selectable(): array
+    {
+        return array_values(array_filter(self::list(), fn($t) => ($t['status'] ?? '') !== 'archived'));
+    }
+
+    /**
+     * Przypina umowę do zespołu przy jej zakładaniu (jak team_api contract_link) i dopisuje wykonawcę
+     * (konto SZO o e-mailu z umowy) do składu z tą umową jako podstawą. Bez sprawdzania uprawnień lidera:
+     * wywołuje to formularz umowy. @return bool czy przypięto
+     */
+    public static function linkContractOnCreate(int $teamId, string $type, int $contractId, int $by): bool
+    {
+        if (!self::allowsContract($type) || $teamId <= 0) return false;
+        self::migrate();
+        $team = db_one("SELECT id, status FROM task_teams WHERE id=?", [$teamId]);
+        $c = self::contractInfo($type, $contractId);
+        if (!$team || ($team['status'] ?? '') === 'archived' || !$c) return false;
+        $now = date('Y-m-d H:i:s');
+        db()->prepare("INSERT INTO contract_teams (contract_type, contract_id, team_id, zakres, added_by, added_at) VALUES (?, ?, ?, '', ?, ?)
+                       ON CONFLICT(contract_type, contract_id, team_id) DO NOTHING")
+            ->execute([$type, $contractId, $teamId, $by, $now]);
+        self::audit($teamId, 'contract_linked', null, null,
+            ['contract_type' => $type, 'contract_id' => $contractId, 'numer' => $c['nr_rejestru'] ?: $c['numer_umowy'], 'zakres' => '']);
+        $email = strtolower(trim((string)($c['email'] ?? '')));
+        $person = $email !== '' ? db_one("SELECT id FROM users WHERE LOWER(email)=? AND COALESCE(is_active,1)=1", [$email]) : null;
+        if ($person && !db_one("SELECT 1 FROM task_team_members WHERE team_id=? AND user_id=?", [$teamId, (int)$person['id']])) {
+            $after = ['role' => 'member', 'contract_type' => $type, 'contract_id' => $contractId];
+            db()->prepare("INSERT INTO task_team_members (team_id, user_id, added_by, added_at, role, contract_type, contract_id)
+                           VALUES (?, ?, ?, ?, 'member', ?, ?)")->execute([$teamId, (int)$person['id'], $by, $now, $type, $contractId]);
+            self::historyTouch($teamId, (int)$person['id'], $after);
+            self::audit($teamId, 'member_added', (int)$person['id'], null, $after + ['z_umowy' => true]);
+        }
+        return true;
+    }
+
     /** Podstawowe dane umowy BEZ kwot: rodzaj, numer, RU, strona, status, daty, adres karty. */
     public static function contractInfo(string $type, int $id): ?array
     {

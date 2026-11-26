@@ -63,6 +63,17 @@ try {
     }
 } catch (\Throwable $e) {}
 
+// Komórka organizacyjna i zespół — wymagane przy umowie wolontariackiej (polecenie 2026-11-26)
+$_vol_units = [];
+try { $_vol_units = db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY sort_order, name"); } catch (\Throwable $e) {}
+$_vol_teams = [];
+try {
+    if (module_enabled('org_enabled')) {
+        require_once dirname(dirname(__DIR__)) . '/modules/teams/lib/TeamService.php';
+        $_vol_teams = TeamService::selectable();
+    }
+} catch (\Throwable $e) {}
+
 // Konfiguracja wymagalności pól
 $_add_field_keys = ['imie_nazwisko','email','pesel','data_urodzenia','telefon','adres',
                     'numer_umowy','data_zawarcia','data_rozpoczecia','data_zakonczenia',
@@ -496,6 +507,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$is_draft && !$is_technical && !empty($_task_workspaces) && empty($_POST['task_workspace_id'])) {
         $errors[] = 'Wybierz obszar zadań — pole jest wymagane.';
     }
+    if (!$is_technical) {
+        $_unit_ids = array_map('intval', array_column($_vol_units, 'id'));
+        if (empty($_POST['org_unit_id']) || !in_array((int)$_POST['org_unit_id'], $_unit_ids, true)) {
+            $errors[] = 'Wskaż komórkę organizacyjną — pole jest wymagane.';
+        }
+        $_team_ids = array_map('intval', array_column($_vol_teams, 'id'));
+        if ($_vol_teams && (empty($_POST['team_id']) || !in_array((int)$_POST['team_id'], $_team_ids, true))) {
+            $errors[] = 'Wskaż zespół — pole jest wymagane.';
+        }
+    }
 
     // Statusy terminalne — tylko admin + wymagane uzasadnienie (pomiń dla technicznej)
     if (!$is_technical && in_array($row['status'] ?? '', $_terminal_statuses, true)) {
@@ -845,6 +866,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 log_contract_action($TYPE, $id, current_user()['id'], 'note',
                     'Przypisano do obszaru zadań ID=' . $task_ws_id);
+            } catch (\Throwable $e) {}
+        }
+
+        // Komórka i zespół: przypisanie umowy (Przypisanie) i przypięcie do zespołu z wolontariuszem w składzie
+        try {
+            require_once dirname(dirname(__DIR__)) . '/modules/contract_links/lib/ContractLinks.php';
+            $_link = [];
+            if (!empty($data['org_unit_id'])) $_link['unit_id'] = (int)$data['org_unit_id'];
+            if ($task_ws_id > 0) $_link['workspace_id'] = $task_ws_id;
+            if ($_link) ContractLinks::save($TYPE, (int)$id, $_link, 'manual', (int)current_user()['id']);
+        } catch (\Throwable $e) {}
+        $_team_id = (int)($_POST['team_id'] ?? 0);
+        if ($_team_id > 0 && $_vol_teams) {
+            try {
+                if (TeamService::linkContractOnCreate($_team_id, $TYPE, (int)$id, (int)current_user()['id'])) {
+                    log_contract_action($TYPE, $id, current_user()['id'], 'note', 'Przypięto do zespołu ID=' . $_team_id);
+                }
             } catch (\Throwable $e) {}
         }
 
@@ -1216,18 +1254,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
             <?php endif; ?>
           </select>
           <div class="form-text"><i class="bi bi-info-circle me-1"></i>„Projekt" → przekazanie do akceptacji</div>
-        </div>
-        <div class="col-sm-3">
-          <label class="form-label fw-semibold">Komórka org.</label>
-          <select name="org_unit_id" class="form-select">
-            <option value="">— wybierz —</option>
-            <?php try {
-              $units = db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY sort_order, name");
-              foreach ($units as $u):
-                $sel = ($row['org_unit_id']??'')==$u['id']?'selected':''; ?>
-            <option value="<?= h($u['id']) ?>" <?= $sel ?>><?= h($u['name']) ?></option>
-            <?php endforeach; } catch(\Throwable $e) {} ?>
-          </select>
         </div>
       </div>
 
@@ -2074,6 +2100,43 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
   </div>
 
+  <!-- Komórka organizacyjna i zespół — wymagane -->
+  <div class="wiz-card" style="border: 2px solid #fbbf24;">
+    <div class="wiz-card-header" style="background:#fffbeb">
+      <div class="wiz-card-icon" style="background:#fef3c7;color:#92400E">
+        <i class="bi bi-diagram-3-fill" aria-hidden="true"></i>
+      </div>
+      <div>
+        <div class="wiz-card-title">Komórka organizacyjna i zespół <span class="text-danger ms-1" aria-hidden="true">*</span></div>
+        <div class="wiz-card-subtitle">Wymagane — gdzie wolontariusz działa w strukturze Fundacji</div>
+      </div>
+    </div>
+    <div class="wiz-card-body row g-3">
+      <div class="col-sm-6">
+        <label for="vol_org_unit_id" class="form-label fw-semibold">Komórka organizacyjna <span class="text-danger" aria-hidden="true">*</span></label>
+        <select name="org_unit_id" id="vol_org_unit_id" class="form-select" required aria-required="true" aria-describedby="vol_unit_hint">
+          <option value="">— wybierz komórkę —</option>
+          <?php foreach ($_vol_units as $u): ?>
+          <option value="<?= (int)$u['id'] ?>"<?= (string)($row['org_unit_id'] ?? '') === (string)$u['id'] ? ' selected' : '' ?>><?= h($u['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text" id="vol_unit_hint">Od komórki zależy grupa w chmurze plików.</div>
+      </div>
+      <?php if ($_vol_teams): ?>
+      <div class="col-sm-6">
+        <label for="vol_team_id" class="form-label fw-semibold">Zespół <span class="text-danger" aria-hidden="true">*</span></label>
+        <select name="team_id" id="vol_team_id" class="form-select" required aria-required="true" aria-describedby="vol_team_hint">
+          <option value="">— wybierz zespół —</option>
+          <?php foreach ($_vol_teams as $t): ?>
+          <option value="<?= (int)$t['id'] ?>"<?= (string)($row['team_id'] ?? '') === (string)$t['id'] ? ' selected' : '' ?>><?= h($t['name']) ?><?= !empty($t['unit_name']) ? ' (' . h($t['unit_name']) . ')' : '' ?></option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text" id="vol_team_hint">Umowa zostanie przypięta do zespołu, a wolontariusz (konto o tym e-mailu) dopisany do składu.</div>
+      </div>
+      <?php endif; ?>
+    </div>
+  </div>
+
   <?php if (!empty($_task_workspaces)): ?>
   <!-- Obszar zadań — wymagany -->
   <div class="wiz-card" style="border: 2px solid #fbbf24;">
@@ -2375,6 +2438,8 @@ var _visitedSteps = new Set([1]);
 
 // ── Konfiguracja wymagalności pól (z PHP) ────────────────────────────────────
 var ADD_FIELD_CFG = <?= json_encode($_add_field_cfg) ?>;
+// Komórka i zespół — zawsze wymagane (poza umową techniczną, patrz customCheck)
+ADD_FIELD_CFG.org_unit_id = 'required'; ADD_FIELD_CFG.team_id = 'required';
 
 var ADD_STEP_FIELDS = {
   1: [
@@ -2409,6 +2474,16 @@ var ADD_STEP_FIELDS = {
     {name:'plik_umowy', label:'Plik porozumienia', customCheck: function() {
       var el = document.querySelector('[name="plik_umowy"]');
       return el && el.files && el.files.length > 0;
+    }},
+    {name:'org_unit_id', label:'Komórka organizacyjna', customCheck: function() {
+      var el = document.querySelector('[name="org_unit_id"]');
+      var tech = document.querySelector('[name="wspolpraca_przed_2026"]');
+      return !el || (tech && tech.checked) || !!el.value;
+    }},
+    {name:'team_id', label:'Zespół', customCheck: function() {
+      var el = document.querySelector('[name="team_id"]');
+      var tech = document.querySelector('[name="wspolpraca_przed_2026"]');
+      return !el || (tech && tech.checked) || !!el.value;
     }},
     {name:'task_workspace_id', label:'Obszar zadań', customCheck: function() {
       var el = document.querySelector('[name="task_workspace_id"]');
