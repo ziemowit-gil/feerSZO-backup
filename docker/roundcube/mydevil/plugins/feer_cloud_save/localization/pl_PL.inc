@@ -1,0 +1,25 @@
+<?php
+$labels = [];
+$labels['save'] = 'Zapisz w chmurze';
+$labels['saveall'] = 'Zapisz wszystkie w chmurze';
+$labels['saving'] = 'Zapisuję w chmurze…';
+$labels['savedone'] = 'Zapisano w chmurze: $path';
+$labels['savedmany'] = 'Zapisano w chmurze plików: $n (folder $path)';
+$labels['error'] = 'Nie udało się zapisać w chmurze. Spróbuj ponownie.';
+$labels['autherror'] = 'Chmura odrzuciła połączenie (np. usunięte hasło aplikacji). Połącz ją ponownie przy następnym zapisie.';
+$labels['connecttitle'] = 'Połącz pocztę z chmurą FEER';
+$labels['connectbutton'] = 'Połącz z chmurą';
+$labels['promptlead'] = 'Połącz raz pocztę z chmurą FEER, a dalej wszystko zrobisz jednym kliknięciem:';
+$labels['needconnect'] = 'Żeby zapisać załącznik w chmurze, połącz raz pocztę z chmurą FEER:';
+$labels['benefit1'] = 'zapisywanie załączników w chmurze (menu ▾ przy pliku),';
+$labels['benefit2'] = 'wysyłanie dużych plików jako link do chmury.';
+$labels['promptlogto'] = 'W chmurze zalogujesz się kontem FEER (tym samym co w SZO), nie hasłem do poczty, i zatwierdzisz dostęp dla „Poczta FEER”. Połączenie usuniesz w chmurze: Ustawienia → Bezpieczeństwo.';
+$labels['later'] = 'Przypomnij za tydzień';
+$labels['never'] = 'Nie pokazuj więcej';
+$labels['opening'] = 'Otwieram logowanie do chmury FEER…';
+$labels['waiting'] = 'Czekam na zatwierdzenie dostępu w chmurze…';
+$labels['connected'] = 'Połączono z chmurą FEER.';
+$labels['connecterror'] = 'Nie udało się połączyć z chmurą. Spróbuj ponownie.';
+$labels['connectexpired'] = 'Czas na połączenie minął. Spróbuj ponownie.';
+$labels['popupblocked'] = 'Przeglądarka zablokowała okno logowania.';
+$labels['openlogin'] = 'Otwórz logowanie do chmury';

@@ -78,6 +78,19 @@ show_additional_headers. Konfiguracje wtyczek: `plugin-config/` = `~/roundcube/c
 - Znak wodny pustego podglądu: `app/skins/elastic/watermark.html` → `plugins-feer/feer_theme/watermark.html`
   (oryginał `watermark.html.orig`). Przeglądarki trzymają ten plik 30 dni.
 
+## Chmura: połączenie i „Zapisz w chmurze” (feer_cloud_save)
+
+- Połączenie: Nextcloud Login Flow v2 (w chmurze logowanie kontem FEER przez Logto, nie hasłem
+  poczty). Wynik w preferencji `nextcloud_login` (loginName, appPassword) — tej samej, której używa
+  nextcloud_attachments. Po zalogowaniu (tylko `feer_cloud_prompt_hosts`, raz na sesję) okienko:
+  Połącz / Przypomnij za tydzień / Nie pokazuj więcej (`feer_cloud_prompt`). Urządzenie w chmurze:
+  „Poczta FEER (poczta.feer.org.pl)” — tam też się je usuwa.
+- Menu załącznika ▾: „Zapisz w chmurze” / „Zapisz wszystkie w chmurze” → WebDAV do
+  `Załączniki z poczty/Odebrane/RRRR-MM/`, zajęta nazwa → „ (2)”. Bez połączenia — okienko połączenia.
+- Polskie tłumaczenie nextcloud_attachments: `l10n/nextcloud_attachments/pl_PL.inc` =
+  `~/roundcube/l10n/…` dowiązane do `app/plugins/nextcloud_attachments/l10n/pl_PL.inc`.
+- UWAGA: nextcloud_attachments trzyma hasło aplikacji chmury jawnym tekstem w preferencjach (baza).
+
 ## Wygląd
 
 `feer_theme` = nakładka CSS na skin Elastic (barwy SZO, karta logowania z logo, tryb ciemny).

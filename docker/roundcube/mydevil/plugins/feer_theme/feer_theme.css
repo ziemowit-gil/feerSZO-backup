@@ -430,6 +430,8 @@ input[type="checkbox"]:checked, input[type="radio"]:checked {
   border-radius: var(--feer-radius-lg) var(--feer-radius-lg) 0 0 !important;
 }
 .ui-dialog .ui-dialog-titlebar .ui-button, .ui-dialog .ui-dialog-titlebar a { color: #fff !important; }
+/* tytuł ma własny kolor z jquery-ui (#2c363a) — bez tego ciemny tekst na granacie */
+.ui-dialog .ui-dialog-titlebar .ui-dialog-title { color: #fff !important; font-weight: 600; }
 
 /* Komunikaty (błąd/ok/info) */
 .ui.alert, div.ui.alert, .alert {
@@ -614,6 +616,14 @@ body.task-login #messagestack { z-index: 10; }
 #datepicker .ui-datepicker-current-day a, #datepicker .ui-state-active {
   background: var(--feer-blue) !important; color: #fff !important; border-color: var(--feer-blue) !important;
 }
+
+/* feer_cloud_save: ikona chmury. Elastic ma okrojony font Icons: \f0ee nie ma, \f382 (cloud-upload-alt) jest */
+.menu a.feer-cloud:before,
+.menu a.feer-cloud-all:before { content: "\f382"; }
+.feer-cloud-dialog p { margin: 0 0 .6rem; line-height: 1.5; }
+.feer-cloud-dialog ul { margin: 0 0 .8rem 1.1rem; padding: 0; line-height: 1.6; }
+.feer-cloud-dialog .hint { font-size: .85rem; color: var(--feer-muted); }
+html.dark-mode .feer-cloud-dialog .hint { color: #cbd5e1; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    11. Tryb ciemny (Ustawienia → Interfejs → tryb ciemny w Elastic)

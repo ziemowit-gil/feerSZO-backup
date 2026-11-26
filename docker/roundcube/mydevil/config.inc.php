@@ -73,6 +73,7 @@ $config['plugins'] = [
     'calendar',              // kolab/calendar, sterownik database
     'managesieve',           // filtry i autoodpowiedź (tylko dPoczta; sdata nie ma ManageSieve)
     'nextcloud_attachments', // duże załączniki jako link do chmury
+    'feer_cloud_save',       // połączenie z chmurą (Login Flow, Logto) + „Zapisz w chmurze” (własny)
     'contextmenu',           // menu pod prawym przyciskiem
     'thunderbird_labels',    // etykiety jak w Thunderbirdzie
     'persistent_login',      // „Zapamiętaj mnie” (tokeny, 7 dni)
@@ -114,3 +115,8 @@ $config['autoexpand_threads'] = 0;
 // Zebrane adresy (wbudowane od 1.5, zamiast wtyczki automatic_addressbook)
 $config['collected_recipients'] = true;
 $config['collected_senders'] = true;
+
+// feer_cloud_save: folder w chmurze (pod nim RRRR-MM); logowanie = połączenie nextcloud_attachments
+$config['feer_cloud_save_folder'] = 'Załączniki z poczty/Odebrane';
+// Zachęta „Połącz pocztę z chmurą” po logowaniu: tylko skrzynki na tych serwerach IMAP (@feer.org.pl)
+$config['feer_cloud_prompt_hosts'] = ['imap.dpoczta.pl'];

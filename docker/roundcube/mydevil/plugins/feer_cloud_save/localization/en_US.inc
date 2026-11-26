@@ -1,0 +1,25 @@
+<?php
+$labels = [];
+$labels['save'] = 'Save to cloud';
+$labels['saveall'] = 'Save all to cloud';
+$labels['saving'] = 'Saving to cloud…';
+$labels['savedone'] = 'Saved to cloud: $path';
+$labels['savedmany'] = 'Saved $n files to cloud (folder $path)';
+$labels['error'] = 'Could not save to cloud. Please try again.';
+$labels['autherror'] = 'The cloud rejected the login. Reconnect it in Settings → Preferences → Composing Messages.';
+$labels['connecttitle'] = 'Connect mail with the cloud';
+$labels['connectbutton'] = 'Connect to cloud';
+$labels['promptlead'] = 'Connect your mail with the FEER cloud once and then:';
+$labels['needconnect'] = 'To save an attachment to the cloud, connect your mail with the FEER cloud once:';
+$labels['benefit1'] = 'save attachments to the cloud (▾ menu next to a file),';
+$labels['benefit2'] = 'send large files as cloud links.';
+$labels['promptlogto'] = 'You sign in to the cloud with your FEER account (as in SZO), not your mail password, and grant access to “Poczta FEER”. Remove it in the cloud: Settings → Security.';
+$labels['later'] = 'Remind me in a week';
+$labels['never'] = 'Don\'t show again';
+$labels['opening'] = 'Opening FEER cloud sign-in…';
+$labels['waiting'] = 'Waiting for access to be granted in the cloud…';
+$labels['connected'] = 'Connected to FEER cloud.';
+$labels['connecterror'] = 'Could not connect to the cloud. Please try again.';
+$labels['connectexpired'] = 'The connection request expired. Please try again.';
+$labels['popupblocked'] = 'Your browser blocked the sign-in window.';
+$labels['openlogin'] = 'Open cloud sign-in';
