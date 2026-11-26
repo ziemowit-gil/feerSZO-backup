@@ -46,6 +46,16 @@ jest inne niż do poczty, więc login i hasło (najlepiej hasło aplikacji z
 https://szo.feer.org.pl/kalendarz-kontakty) użytkownik wpisuje sam: Ustawienia → Kontakty CardDAV.
 Tabele wtyczki tworzą się same przy pierwszym logowaniu.
 
+## Stopka z SZO
+
+Plugin `feer_signature` przy każdym logowaniu pobiera stopkę z
+`https://szo.feer.org.pl/api/internal/rc_signature.php?email=…` (ta sama co w module Stopka e-mail:
+dane organizacji, wygląd, stanowisko i telefon) i wstawia ją jako podpis HTML tożsamości o adresie
+zalogowanego. Nadpisuje tylko pusty podpis albo poprzednią stopkę z SZO (skrót w preferencji
+`feer_signature_hash`), więc własny podpis użytkownika zostaje. Adresy nieznane SZO (np. @stud) bez zmian.
+Klucz: ustawienie SZO `roundcube_signature_key` = `secrets/szo-key`. Nowy klucz: wygenerować, zapisać
+w obu miejscach. `htmleditor = 1`, żeby stopka z logo nie zamieniała się w tekst.
+
 ## Wygląd
 
 `feer_theme` = nakładka CSS na skin Elastic (barwy SZO, karta logowania z logo, tryb ciemny).

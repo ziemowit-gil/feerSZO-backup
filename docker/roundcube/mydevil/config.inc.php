@@ -63,6 +63,7 @@ $config['mime_param_folding'] = 0;
 $config['plugins'] = [
     'feer_login',            // wybór serwera po domenie (własny)
     'feer_theme',            // barwy FEER na skinie Elastic (własny)
+    'feer_signature',        // stopka z SZO w tożsamości przy logowaniu (własny)
     'carddav',               // książki adresowe z chmury nc.feer.org.pl
     'archive',
     'zipdownload',
@@ -80,3 +81,9 @@ $config['mail_domain'] = [
     'imap.dpoczta.pl'    => 'feer.org.pl',
     'titan.sdata.net.pl' => 'stud.feer.org.pl',
 ];
+
+// Stopka z SZO (plugin feer_signature, endpoint api/internal/rc_signature.php)
+$config['feer_signature_url'] = 'https://szo.feer.org.pl/api/internal/rc_signature.php';
+$config['feer_signature_key_file'] = '/usr/home/feer/roundcube/secrets/szo-key';
+// Pisanie w HTML, żeby stopka z logo nie zamieniała się w tekst
+$config['htmleditor'] = 1;

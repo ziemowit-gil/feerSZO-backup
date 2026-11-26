@@ -79,7 +79,7 @@ $tabs = is_admin() ? ['stopka' => 'moja stopka', 'organizacja' => 'organizacja',
     <div>
       <div class="mt-kicker">Biuro · Poczta</div>
       <h1 class="mt-title">Stopka e-mail</h1>
-      <p class="mt-lead">Uzupełnij stanowisko i telefon, sprawdź podgląd i skopiuj stopkę do programu pocztowego.</p>
+      <p class="mt-lead">Uzupełnij stanowisko i telefon, sprawdź podgląd i skopiuj stopkę do programu pocztowego. W poczcie <a href="https://poczta.feer.org.pl/" target="_blank" rel="noopener">poczta.feer.org.pl</a> stopka ustawia się sama przy logowaniu.</p>
     </div>
   </div>
   <?php if ($tabs): ?>
