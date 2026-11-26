@@ -39,5 +39,7 @@ class Application extends App implements IBootstrap {
 		\OCP\Util::addStyle(self::APP_ID, 'feer-ui');
 		// Selektor aplikacji FEER zamiast menu „kafelki” w nagłówku (js/app-menu.js).
 		\OCP\Util::addScript(self::APP_ID, 'app-menu');
+		// Etykiety pól i inne poprawki dostępności formularzy (np. harmonogram spotkań, strona rezerwacji).
+		\OCP\Util::addScript(self::APP_ID, 'a11y-forms');
 	}
 }

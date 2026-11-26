@@ -178,3 +178,49 @@ body:not([data-themes*="dark"]) .fc-timeGridDay-view .fc-timegrid-col.fc-day-tod
 .feer-apps button.feer-apps__tile:hover { background: #EEF4FF !important; }
 .feer-apps button.feer-apps__tile .feer-apps__icon { background: #F0FDF4; color: #15803D; }
 .feer-apps button.feer-apps__tile .feer-apps__icon--mask::after { background: #15803D; }
+
+/* ── Etykiety pól dopisane przez js/a11y-forms.js ── */
+.feer-field-label { display: block; margin: 10px 0 4px; font-size: 15px; font-weight: 600; color: #111827; }
+
+/* ── Kalendarz › „Utwórz harmonogram spotkań” (appointment-config-modal) ── */
+.appointment-config-modal { color: #111827; }
+.appointment-config-modal .appointment-config-modal__form { gap: 4px; }
+.appointment-config-modal .appointment-config-modal__form__row { margin-block: 10px !important; }
+.appointment-config-modal label, .appointment-config-modal .appointment-config-modal__form__row > label { font-size: 15px; font-weight: 600; color: #111827; }
+.appointment-config-modal .appointment-config-modal__form__title { font-size: 18px !important; font-weight: 700; margin-top: 18px !important; }
+.appointment-config-modal input:not([type="checkbox"]):not([type="radio"]),
+.appointment-config-modal textarea,
+.appointment-config-modal .vs__dropdown-toggle {
+	min-height: 44px; border: 1px solid #64748B !important; border-radius: 10px !important; font-size: 15px; color: #111827;
+}
+.appointment-config-modal input::placeholder, .appointment-config-modal textarea::placeholder { color: #6B7280; opacity: 1; }
+.appointment-config-modal :focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px !important; }
+.appointment-config-modal .availability-day { padding-block: 8px; border-bottom: 1px solid #E5E7EB; }
+.appointment-config-modal .availability-slot-group button,
+.appointment-config-modal .availability-day button {
+	min-width: 44px; min-height: 44px; border: 1px solid #64748B !important; border-radius: 10px !important;
+	background: #ffffff !important; color: #1559D6 !important; opacity: 1 !important;
+}
+.appointment-config-modal .availability-day button:hover { background: #EEF4FF !important; }
+.appointment-config-modal .appointment-config-modal__submit-button { min-height: 48px; font-size: 16px; }
+
+/* ── Strona rezerwacji (publiczna) ── */
+.booking .booking__container, .booking { color: #111827; }
+.booking .booking__name { font-size: 22px; font-weight: 700; }
+.booking .booking__description { font-size: 15px; line-height: 1.5; color: #374151; }
+.booking button.appointment-slot, .booking .appointment-slot {
+	min-height: 44px; min-width: 96px; margin: 4px; padding: 8px 14px !important; font-size: 15px; font-weight: 600;
+	border: 2px solid #1E6DFF !important; border-radius: 10px !important; background: #ffffff !important; color: #1559D6 !important;
+}
+.booking .appointment-slot:hover { background: #EEF4FF !important; }
+.booking :focus-visible, .booking-details :focus-visible, .appointment-details :focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px !important; }
+.booking .booking__slots { gap: 6px; }
+.feer-avatar-fallback { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%;
+	background: #1559D6; color: #ffffff; font-size: 24px; font-weight: 700; }
+/* okienko z danymi rezerującego (po wyborze terminu) */
+.booking-details input, .booking-details textarea, .appointment-details input, .appointment-details textarea {
+	min-height: 44px; border: 1px solid #64748B !important; border-radius: 10px !important; font-size: 15px;
+}
+.booking-details label, .appointment-details label { font-weight: 600; color: #111827; }
+/* reklama „Nextcloud – Załóż własne bezpłatne konto” pod stroną rezerwacji */
+body:has(.booking) footer, body:has(.appointment-booking-confirmation) footer { display: none !important; }
