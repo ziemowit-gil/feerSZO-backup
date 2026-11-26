@@ -20,7 +20,9 @@ $config['mimeshield_allowed_digests'] = ['sha256', 'sha384', 'sha512'];
 $config['mimeshield_legacy_digests'] = ['sha1'];
 $config['mimeshield_min_rsa_bits'] = 2048;
 $config['mimeshield_ca_bundle'] = ['/usr/home/feer/roundcube/config/smime-roots.pem']; // 83 CA z zaufaniem do poczty (Mozilla NSS), odświeżanie: tools/smime_roots.py
-$config['mimeshield_use_system_ca'] = false;          // CA systemowe są do TLS, nie do poczty
+$config['mimeshield_use_system_ca'] = false;
+// Pośrednie CA dokładane do budowy łańcucha (wiadomości bez pośredniego, własne podpisy): ca/smime-intermediates.pem
+$config['mimeshield_intermediates'] = ['/usr/home/feer/roundcube/config/smime-intermediates.pem'];          // CA systemowe są do TLS, nie do poczty
 $config['mimeshield_encrypt_untrusted'] = 'warn';     // certyfikat spoza zaufanych CA: zapis po potwierdzeniu
 $config['mimeshield_revocation'] = 'off';
 $config['mimeshield_max_message_size'] = 52428800;

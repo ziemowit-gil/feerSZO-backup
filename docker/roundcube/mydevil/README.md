@@ -119,6 +119,8 @@ Wymaga wdrożenia SZO z endpointem. LDAP (ldap-prod.feer.org.pl) nie istnieje �
   Odświeżanie (raz na kwartał): pobrać
   https://hg.mozilla.org/mozilla-central/raw-file/tip/security/nss/lib/ckfw/builtins/certdata.txt,
   `python3 -I tools/smime_roots.py certdata.txt ca/smime-roots.pem`, wgrać do `~/roundcube/config/`.
+  Pośrednie: `config/smime-intermediates.pem` = `ca/smime-intermediates.pem` (Certum SMIME G1 R36 CA 2,
+  wystawca certyfikatów S/MIME FEER, łańcuch do Certum Trusted Network CA 2).
   OpenSSL w PHP 3.0.20 < 3.0.23 (CVE-2026-35189) — zależy od łatki MyDevil (`diag` ostrzega).
 - Foldery specjalne stałe (`dont_override`), archiwum dPoczty = `Archives`.
 - `ip_check = true`: zmiana IP kończy sesję („Błąd sesji bądź sesja wygasła”).
