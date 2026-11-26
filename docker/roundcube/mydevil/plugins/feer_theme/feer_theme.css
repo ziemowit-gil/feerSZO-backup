@@ -932,3 +932,59 @@ a, .link { color: var(--feer-link); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WCAG 2.2 AA — okno pisania wiadomości (2026-11-26)
+   ══════════════════════════════════════════════════════════════════════════ */
+/* Etykiety pól (Od, Do, DW, Temat…) w pełnym kontraście */
+.compose-headers .col-form-label, #compose-options .col-form-label, #compose-options label {
+  color: var(--feer-text) !important; font-weight: 600;
+}
+/* Pola: ramka 4,8:1 (1.4.11), wysokość ≥ 44 px */
+.compose-headers .form-control, .compose-headers input.form-control, .compose-headers select, .compose-headers .custom-select,
+.compose-headers .recipient-input, #compose-subject, input#compose-subject, #compose-options select, #compose-options input.form-control {
+  border: 1px solid #64748B !important; min-height: 44px; color: var(--feer-text) !important; border-radius: 8px !important;
+}
+#compose-subject { font-size: 1rem !important; font-weight: 600; }
+.compose-headers .input-group-text.icon, .compose-headers .input-group-append a {
+  min-width: 44px; min-height: 44px; color: #374151 !important; border-color: #64748B !important;
+}
+/* Adresaci jako „żetony”: ciemny tekst na jasnym tle, wyraźny przycisk usuwania */
+.recipient-input ul li.recipient, .recipient-input .recipient {
+  background: #EEF4FF !important; border: 1px solid #1559D6 !important; color: var(--feer-text) !important; border-radius: 999px !important;
+}
+.recipient-input .recipient .name, .recipient-input .recipient .email { color: var(--feer-text) !important; }
+.recipient-input .recipient a.button.icon, .recipient-input .recipient a {
+  min-width: 24px; min-height: 24px; color: #374151 !important; opacity: 1 !important;
+}
+/* Błędny adres: nie tylko czerwień — przerywana ramka i ikona ostrzeżenia */
+.recipient-input .recipient.invalid {
+  background: #FEF2F2 !important; border: 2px dashed #B91C1C !important; color: #7F1D1D !important;
+}
+.recipient-input .recipient.invalid:before { content: "\f071"; font-family: "Icons", "Font Awesome 5 Free"; font-weight: 900; color: #B91C1C; margin-inline-end: .3em; }
+
+/* Edytor: wyraźna ramka */
+#composebodycontainer .tox-tinymce, #composebodycontainer textarea#composebody { border: 1px solid #64748B !important; border-radius: 8px !important; }
+#composebody { color: var(--feer-text); font-size: 1rem; line-height: 1.6; }
+
+/* Załączniki */
+#attachment-list li, .attachmentslist li { border-color: #94A3B8 !important; }
+#attachment-list li .attachment-name, .attachmentslist li a.filename { color: var(--feer-text) !important; }
+#attachment-list li .attachment-size, .attachmentslist li .attachment-size { color: var(--feer-muted) !important; }
+#attachment-list li a.delete, .attachmentslist li a.delete, #attachment-list li a.cancel-upload { min-width: 44px; min-height: 44px; opacity: 1 !important; color: #B91C1C !important; }
+
+/* „Wyślij”: ciemniejszy błękit FEER (biały tekst 6,1:1), duży cel */
+.formbuttons .btn.send, .btn.btn-primary.send, button.send {
+  background: #1559D6 !important; border-color: #1559D6 !important; color: #ffffff !important; min-height: 48px; font-weight: 700;
+}
+.formbuttons .btn.send:hover, button.send:hover { background: #0F4AB8 !important; border-color: #0F4AB8 !important; }
+
+/* Komunikaty (np. „Zapisano wersję roboczą”, błędy wysyłki): ciemny tekst, kolor tylko jako pasek */
+#messagestack div {
+  background: #ffffff !important; color: var(--feer-text) !important; border: 1px solid #64748B !important;
+  border-inline-start: 6px solid #1559D6 !important; box-shadow: var(--feer-shadow-lg) !important; opacity: 1 !important;
+}
+#messagestack div.error { border-inline-start-color: #B91C1C !important; }
+#messagestack div.warning { border-inline-start-color: #B45309 !important; }
+#messagestack div.confirmation { border-inline-start-color: #15803D !important; }
+#messagestack div a { color: var(--feer-link) !important; text-decoration: underline; }
