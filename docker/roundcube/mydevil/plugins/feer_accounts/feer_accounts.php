@@ -171,6 +171,18 @@ class feer_accounts extends rcube_plugin
   slot.classList.add('feer-sw-slot');
   slot.appendChild(sw);
   src.remove();
+  // Lista przyklejona do okna pod przyciskiem — nagłówek Elastic może mieć overflow:hidden i przycinać ją.
+  var panel = sw.querySelector('.feer-sw-panel'), summary = sw.querySelector('summary');
+  function place() {
+    if (!sw.open) return;
+    var r = summary.getBoundingClientRect();
+    panel.style.position = 'fixed';
+    panel.style.top = Math.round(r.bottom + 6) + 'px';
+    panel.style.left = Math.max(8, Math.min(Math.round(r.left), window.innerWidth - panel.offsetWidth - 8)) + 'px';
+  }
+  sw.addEventListener('toggle', function () { place(); if (sw.open) { var f = panel.querySelector('button, a'); if (f) f.focus(); } });
+  window.addEventListener('resize', place);
+  window.addEventListener('scroll', place, true);
   document.addEventListener('click', function (e) { if (sw.open && !sw.contains(e.target)) sw.open = false; });
   sw.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sw.open) { sw.open = false; sw.querySelector('summary').focus(); } });
 })();
