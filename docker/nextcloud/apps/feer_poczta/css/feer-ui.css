@@ -532,3 +532,36 @@ body:not([data-themes*="dark"]) .contacts-list .list-item__wrapper--active .list
 .activity-app :focus-visible, .activity-entry :focus-visible, .activity-filter :focus-visible, .activity-heatmap :focus-visible, .activity-section :focus-visible {
 	outline: 3px solid #1559D6 !important; outline-offset: 2px !important;
 }
+
+/* ── Hasła (WCAG 2.2 AA + czytelność) ── */
+.passwordsapp .row, .passwordsapp .row-wrapper { min-height: 52px; }
+.passwordsapp .row-name, .passwordsapp .row-name * { color: #111827 !important; font-size: 15px; font-weight: 600; }
+.passwordsapp .row-modified, .passwordsapp .row-size { color: #4B5563 !important; opacity: 1 !important; }
+body:not([data-themes*="dark"]) .passwordsapp .row:hover { background: #F5F8FF !important; }
+.passwordsapp .favicon { opacity: 1 !important; }
+/* tagi: ciemny tekst na jasnym tle (kolor tagu tylko jako kropka/ramka, nie tło pod tekstem) */
+.passwordsapp .tag-label, .passwords-tag-option { color: #111827 !important; font-weight: 600; }
+.passwordsapp .tag-label-bkg { opacity: .18 !important; }
+.passwordsapp .tag-icon { opacity: 1 !important; }
+/* formularz i szczegóły */
+.passwordsapp .input-field__input, .passwords-form input, .password-form input, .password-form textarea,
+.passwordsapp .vs__dropdown-toggle {
+	min-height: 44px !important; font-size: 15px !important; color: #111827 !important;
+	border: 1px solid #64748B !important; border-radius: 10px !important;
+}
+.passwordsapp .vs__dropdown-toggle input, .passwordsapp .vs__search { border: 0 !important; min-height: 0 !important; }
+.passwordsapp .input-field__label, .passwordsapp .field-label, .passwordsapp .notes-label { color: #374151 !important; font-weight: 600; }
+.passwordsapp input::placeholder, .passwordsapp textarea::placeholder { color: #6B7280 !important; opacity: 1; }
+.passwordsapp .notes-container, .passwordsapp .notes { color: #111827; line-height: 1.55; }
+.passwordsapp .notes-status { color: #4B5563 !important; }
+.passwordsapp .security-link { color: #1559D6 !important; text-decoration: underline !important; text-underline-offset: 2px; }
+.passwordsapp .input-field__helper-text-message--error { color: #B91C1C !important; font-weight: 600; }
+/* wyszukiwarka, okruszki, przyciski */
+.passwords-search-box input { min-height: 44px; border: 1px solid #64748B !important; border-radius: 10px !important; }
+.passwords-breadcrumbs a, .passwords-breadcrumbs .crumb, .passwordsapp .breadcrumb a { color: #111827 !important; }
+.passwordsapp .passwords-password-controls button, .passwordsapp .row-checkbox, .passwordsapp .header-actions button { min-width: 44px; min-height: 44px; }
+.passwordsapp .password-field__input--secure-text { letter-spacing: .12em; }
+/* fokus */
+.passwordsapp :focus-visible, .passwords-form :focus-visible, .password-form :focus-visible, .passwords-sidebar-password :focus-visible {
+	outline: 3px solid #1559D6 !important; outline-offset: 2px !important;
+}
