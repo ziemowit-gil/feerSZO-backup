@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\FeerPoczta\AppInfo;
 
 use OCA\FeerPoczta\Dashboard\SzoWidget;
+use OCA\FeerPoczta\Dashboard\ZespolyWidget;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -19,6 +20,7 @@ class Application extends App implements IBootstrap {
 
 	public function register(IRegistrationContext $context): void {
 		$context->registerDashboardWidget(SzoWidget::class);
+		$context->registerDashboardWidget(ZespolyWidget::class);
 	}
 
 	public function boot(IBootContext $context): void {

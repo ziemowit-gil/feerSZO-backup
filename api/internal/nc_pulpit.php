@@ -5,7 +5,9 @@
  *
  * GET ?uid=<uid w chmurze>&email=<e-mail konta w chmurze>&limit=7
  * → {"items":[{id,title,date,kategoria,pinned,read,url}], "all_url":"…", "unread":N,
- *    "tasks":[{id,title,due,overdue,ws,url}], "tasks_url":"…", "tasks_total":N, "szo_url":"…"}
+ *    "tasks":[{id,title,due,overdue,ws,url}], "tasks_url":"…", "tasks_total":N, "szo_url":"…",
+ *    "teams":[{id,name,unit,members,url}], "teams_url":"…"}
+ * Zespoły: aktywne zespoły osoby (task_team_members) ze Struktury (org/teams.php), z jednostką.
  *
  * Osoba: sso_accounts.cloud_uid = uid, a gdy brak — users.email = email (aktywne konto).
  * Widoczność jak w /komunikaty (ann_list_for_user: audytorium, wygaśnięcie), bez komunikatów
@@ -42,6 +44,7 @@ $out = [
     'items' => [], 'all_url' => $base . '/komunikaty/index.php', 'unread' => 0,
     'tasks' => [], 'tasks_url' => $base . '/tasks/moje.php', 'tasks_total' => 0,
     'szo_url' => $base . '/',
+    'teams' => [], 'teams_url' => $base . '/org/teams.php',
 ];
 
 $user = null;
@@ -115,6 +118,26 @@ if ($user) {
             }
         } catch (\Throwable $e) {}
     }
+
+    // Moje zespoły (Struktura Organizacyjna → Zespoły).
+    try {
+        $rows = db_all(
+            "SELECT tt.id, tt.name, ou.name AS unit_name,
+                    (SELECT COUNT(*) FROM task_team_members x WHERE x.team_id = tt.id) AS members
+             FROM task_team_members tm
+             JOIN task_teams tt ON tt.id = tm.team_id AND tt.is_active = 1
+             LEFT JOIN org_units ou ON ou.id = tt.unit_id
+             WHERE tm.user_id = ? ORDER BY tt.name LIMIT $limit", [(int)$user['id']]);
+        foreach ($rows as $t) {
+            $out['teams'][] = [
+                'id'      => (int)$t['id'],
+                'name'    => (string)$t['name'],
+                'unit'    => (string)($t['unit_name'] ?? ''),
+                'members' => (int)$t['members'],
+                'url'     => $base . '/org/teams.php#team-' . (int)$t['id'],
+            ];
+        }
+    } catch (\Throwable $e) {}
 }
 
 echo json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
