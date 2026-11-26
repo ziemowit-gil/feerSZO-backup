@@ -282,7 +282,6 @@ body:not([data-themes*="dark"]) .files-list .checkbox-radio-switch__icon svg { c
 .app-full :focus-visible, .event-popover :focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px !important; }
 .app-full .property-title-time-picker__time-pickers-from-inner__timezone, .app-full .property-title-time-picker__time-pickers-to-inner__timezone { color: #374151; }
 /* sekcje oddzielone */
-.app-full .app-full-body__left > * + *, .app-full .app-full-body__right > * + * { margin-top: 10px; }
 .app-full .invitees-list { border-top: 1px solid #E5E7EB; padding-top: 14px; margin-top: 18px; }
 
 /* ── Kontakty (WCAG 2.2 AA + czytelność) ── */
@@ -463,3 +462,17 @@ body:not([data-themes*="dark"]) .contacts-list .list-item__wrapper--active .list
 .navigation-list__link { color: #111827 !important; }
 .navigation-list__link--active { color: #1559D6 !important; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
 .photos .header-actions button, .face__header__actions button, .album-container__filters button { min-width: 44px; min-height: 44px; }
+
+/* Edytor wydarzenia — poprawka: pola wyszukiwania WEWNĄTRZ list rozwijanych (Kategorie, Przypomnienie, Uczestnicy)
+   bez własnej ramki i wysokości (inaczej „ramka w ramce” i tekst przyklejony do góry). */
+.app-full .vs__dropdown-toggle input, .app-full .vs__search, .app-full .vs__search:focus,
+.event-popover .vs__dropdown-toggle input, .event-popover .vs__search,
+.appointment-config-modal .vs__dropdown-toggle input, .appointment-config-modal .vs__search,
+.contact-details .vs__dropdown-toggle input, .contact-details .vs__search {
+	border: 0 !important; min-height: 0 !important; box-shadow: none !important; background: transparent !important; margin: 0 !important;
+}
+.app-full .vs__dropdown-toggle, .event-popover .vs__dropdown-toggle { align-items: center; padding-block: 4px !important; }
+.app-full .vs__selected-options { align-items: center; }
+.app-full .vs__placeholder, .app-full .vs__search::placeholder { color: #6B7280 !important; font-weight: 400 !important; }
+/* pola tekstowe opisu i lokalizacji: bez nadmiarowej wysokości */
+.app-full .property-text__input textarea { min-height: 44px; padding: 10px 12px !important; }
