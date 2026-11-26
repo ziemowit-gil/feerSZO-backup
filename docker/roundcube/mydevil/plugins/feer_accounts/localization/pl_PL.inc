@@ -1,0 +1,23 @@
+<?php
+$labels = [];
+$labels['title'] = 'Moje skrzynki';
+$labels['taskbar'] = 'Skrzynki';
+$labels['lead'] = 'Dodaj drugą skrzynkę (np. @feer.org.pl i @stud.feer.org.pl albo skrzynkę wspólną) i przełączaj się między nimi bez wylogowania.';
+$labels['current'] = 'otwarta teraz';
+$labels['primary'] = 'główna';
+$labels['switch'] = 'Przełącz';
+$labels['remove'] = 'Usuń';
+$labels['add'] = 'Dodaj skrzynkę';
+$labels['email'] = 'Adres e-mail';
+$labels['password'] = 'Hasło do tej skrzynki';
+$labels['passhint'] = 'Sprawdzimy je od razu logowaniem. Hasło jest zapisane zaszyfrowane przy Twojej skrzynce głównej.';
+$labels['added'] = 'Dodano skrzynkę %s.';
+$labels['removed'] = 'Usunięto skrzynkę z listy.';
+$labels['badlogin'] = 'Nie udało się zalogować do %s — sprawdź adres i hasło.';
+$labels['baddomain'] = 'Tu działają tylko skrzynki @feer.org.pl i @stud.feer.org.pl.';
+$labels['duplicate'] = 'Ta skrzynka już jest na liście.';
+$labels['limit'] = 'Można dodać najwyżej 5 skrzynek.';
+$labels['manageonprimary'] = 'Skrzynki dodajesz i usuwasz, gdy jest otwarta skrzynka główna (%s).';
+$labels['switchfail'] = 'Nie udało się przełączyć na %s — hasło mogło się zmienić. Usuń skrzynkę i dodaj ją ponownie.';
+$labels['switched'] = 'Otwarto skrzynkę %s.';
+$labels['empty'] = 'Masz tylko jedną skrzynkę.';

@@ -58,7 +58,13 @@ w obu miejscach. `htmleditor = 1`, żeby stopka z logo nie zamieniała się w te
 
 ## Wtyczki
 
-Własne (`plugins/`, na serwerze `~/roundcube/plugins-feer`): feer_login, feer_theme, feer_signature.
+Własne (`plugins/`, na serwerze `~/roundcube/plugins-feer`): feer_login, feer_theme, feer_signature, feer_accounts.
+
+`feer_accounts` (2026-11-26): kilka skrzynek i przełączanie bez wylogowania — Ustawienia → „Moje skrzynki” i ikona
+„Skrzynki” w lewym pasku. Dodatkowe skrzynki w preferencjach skrzynki głównej (hasło przez rcmail->encrypt, des_key),
+w sesji grupa `feer_acc` przenoszona przy przełączeniu. Przełączenie: test IMAP, potem jak index.php (kill_session →
+login → regenerate_id → set_auth_cookie → log_login → login_after). Wdrożenie: `plugins-feer/feer_accounts` + symlink
+`app/plugins/feer_accounts` + wpis w `$config['plugins']` za feer_login.
 Z paczki: carddav 5.1.5 (rozpakowana ręcznie). Composerem w `app/` (2026-11-26, composer.json/lock
 w app): kolab/calendar 3.6.1 (+libcalendaring, libkolab), bennet0496/nextcloud_attachments 2.1,
 johndoh/contextmenu 3.3.1, weird-birds/thunderbird_labels 1.6, texxasrulez/persistent_login 1.0.3

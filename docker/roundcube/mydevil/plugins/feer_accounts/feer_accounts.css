@@ -1,0 +1,16 @@
+/* feer_accounts — Moje skrzynki (WCAG 2.2 AA: kontrast, fokus, cele ≥ 44 px) */
+#taskmenu a.feer-accounts:before, .feer-accounts .inner:before { content: "\f0e0"; }
+#taskmenu a.feer-accounts:after { content: ""; }
+.feer-acc .feer-acc-title { font-size: 1.5rem; font-weight: 700; margin: 0 0 .5rem; }
+.feer-acc .feer-acc-h { font-size: 1.15rem; font-weight: 700; margin: 1.5rem 0 .75rem; }
+.feer-acc-list { list-style: none; padding: 0; margin: 1rem 0; }
+.feer-acc-row { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; padding: .75rem 1rem;
+	border: 1px solid #94A3B8; border-radius: 12px; margin-bottom: .5rem; background: #fff; }
+.feer-acc-row.is-current { border: 2px solid #1559D6; background: #F5F8FF; }
+.feer-acc-email { font-weight: 700; color: #111827; overflow-wrap: anywhere; }
+.feer-acc-meta { color: #374151; font-size: .9rem; }
+.feer-acc-actions { margin-left: auto; display: flex; gap: .5rem; }
+.feer-acc-inline { display: inline; margin: 0; }
+.feer-acc-actions .button, .feer-acc-form .button { min-height: 44px; min-width: 44px; }
+.feer-acc-note { color: #374151; }
+.feer-acc :focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px; }

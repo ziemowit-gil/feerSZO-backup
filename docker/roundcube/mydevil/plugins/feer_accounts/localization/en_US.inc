@@ -1,0 +1,23 @@
+<?php
+$labels = [];
+$labels['title'] = 'My mailboxes';
+$labels['taskbar'] = 'Mailboxes';
+$labels['lead'] = 'Add another mailbox and switch between them without logging out.';
+$labels['current'] = 'open now';
+$labels['primary'] = 'primary';
+$labels['switch'] = 'Switch';
+$labels['remove'] = 'Remove';
+$labels['add'] = 'Add mailbox';
+$labels['email'] = 'E-mail address';
+$labels['password'] = 'Password for this mailbox';
+$labels['passhint'] = 'Checked right away by logging in. Stored encrypted with your primary mailbox.';
+$labels['added'] = 'Added mailbox %s.';
+$labels['removed'] = 'Mailbox removed from the list.';
+$labels['badlogin'] = 'Could not log in to %s — check the address and password.';
+$labels['baddomain'] = 'Only @feer.org.pl and @stud.feer.org.pl mailboxes work here.';
+$labels['duplicate'] = 'This mailbox is already on the list.';
+$labels['limit'] = 'You can add up to 5 mailboxes.';
+$labels['manageonprimary'] = 'Add and remove mailboxes while your primary mailbox (%s) is open.';
+$labels['switchfail'] = 'Could not switch to %s — the password may have changed. Remove the mailbox and add it again.';
+$labels['switched'] = 'Opened mailbox %s.';
+$labels['empty'] = 'You have only one mailbox.';

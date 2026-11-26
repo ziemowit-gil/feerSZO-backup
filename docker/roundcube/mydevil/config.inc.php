@@ -65,6 +65,7 @@ $config['mime_param_folding'] = 0;
 
 $config['plugins'] = [
     'feer_login',            // wybór serwera po domenie (własny)
+    'feer_accounts',         // kilka skrzynek, przełączanie bez wylogowania (Ustawienia → Moje skrzynki; własny)
     'feer_theme',            // barwy FEER na skinie Elastic (własny)
     'feer_signature',        // stopka z SZO w tożsamości przy logowaniu (własny)
     'carddav',               // książki adresowe z chmury nc.feer.org.pl
