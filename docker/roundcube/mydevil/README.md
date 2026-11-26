@@ -56,6 +56,28 @@ zalogowanego. Nadpisuje tylko pusty podpis albo poprzednią stopkę z SZO (skró
 Klucz: ustawienie SZO `roundcube_signature_key` = `secrets/szo-key`. Nowy klucz: wygenerować, zapisać
 w obu miejscach. `htmleditor = 1`, żeby stopka z logo nie zamieniała się w tekst.
 
+## Wtyczki
+
+Własne (`plugins/`, na serwerze `~/roundcube/plugins-feer`): feer_login, feer_theme, feer_signature.
+Z paczki: carddav 5.1.5 (rozpakowana ręcznie). Composerem w `app/` (2026-11-26, composer.json/lock
+w app): kolab/calendar 3.6.1 (+libcalendaring, libkolab), bennet0496/nextcloud_attachments 2.1,
+johndoh/contextmenu 3.3.1, weird-birds/thunderbird_labels 1.6, texxasrulez/persistent_login 1.0.3
+(porzucona przez autora; tryb tokenów). Wbudowane: managesieve, identity_select, archive, zipdownload,
+markasjunk, newmail_notifier, attachment_reminder, emoticons, hide_blockquote, identicon,
+show_additional_headers. Konfiguracje wtyczek: `plugin-config/` = `~/roundcube/config/plugins/*.inc.php`
+(dowiązane jako `app/plugins/X/config.inc.php`).
+
+- Kalendarz: sterownik `database` (w bazie Roundcube). CalDAV do chmury odpada, bo sterownik loguje się
+  hasłem poczty, a hasło chmury jest inne.
+- nextcloud_attachments: od razu Login Flow chmury (jednorazowa zgoda), pliki w „Załączniki z poczty/RRRR/MM”.
+- managesieve: `tls://%h:4190` — działa na dPoczcie (Dovecot Pigeonhole), sdata nie ma ManageSieve.
+- Zamiast wtyczek threading_as_default i automatic_addressbook: `default_list_mode = threads`
+  i wbudowane „Zebrani odbiorcy/nadawcy”.
+- `composer audit`: pear/http_request2 < 2.7 (CVE-2025-43717, XSS), przypięty przez libkolab (~2.5);
+  `vendor/` jest poza katalogiem strony, więc nie jest wystawiony.
+- Znak wodny pustego podglądu: `app/skins/elastic/watermark.html` → `plugins-feer/feer_theme/watermark.html`
+  (oryginał `watermark.html.orig`). Przeglądarki trzymają ten plik 30 dni.
+
 ## Wygląd
 
 `feer_theme` = nakładka CSS na skin Elastic (barwy SZO, karta logowania z logo, tryb ciemny).
@@ -67,7 +89,9 @@ i z dopiskiem po cichu go pomija; wersję `?s=mtime` dopisuje sam.
 1. `bin/backup.sh`
 2. pobrać `roundcubemail-X-complete.tar.gz` do `dist/`, sprawdzić sha256 z GitHuba, rozpakować do `~/roundcube`
 3. w nowym katalogu: symlinki `config/config.inc.php`, `plugins/carddav` (rozpakować nową carddav),
-   `plugins/feer_login`, `plugins/feer_theme`; usunąć `logs`, `temp`
+   `plugins/feer_login`, `plugins/feer_theme`, `plugins/feer_signature`, konfiguracje wtyczek z
+   `config/plugins/*.inc.php`, `skins/elastic/watermark.html` → `plugins/feer_theme/watermark.html`;
+   wtyczki composerowe: skopiować composer.json/lock i `composer install`; usunąć `logs`, `temp`
 4. `php84 bin/update.sh` w nowym katalogu, potem `ln -sfn roundcubemail-X app`
 5. obejrzeć logowanie, listę, okno pisania, Ustawienia (Elastic bywa zmieniany)
 

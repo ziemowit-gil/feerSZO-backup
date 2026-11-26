@@ -44,7 +44,10 @@ $config['timezone'] = 'Europe/Warsaw';
 $config['skin'] = 'elastic';
 $config['skins_allowed'] = ['elastic'];
 $config['layout'] = 'widescreen';
-$config['skin_logo'] = ['login' => 'plugins/feer_theme/logo.png'];
+$config['skin_logo'] = [
+    'login' => 'plugins/feer_theme/logo.png',
+    '*'     => 'plugins/feer_theme/mark.png',   // znak w lewym górnym rogu
+];
 
 $config['use_https'] = true;
 $config['force_https'] = true;
@@ -65,6 +68,15 @@ $config['plugins'] = [
     'feer_theme',            // barwy FEER na skinie Elastic (własny)
     'feer_signature',        // stopka z SZO w tożsamości przy logowaniu (własny)
     'carddav',               // książki adresowe z chmury nc.feer.org.pl
+    'libcalendaring',        // wymagane przez calendar
+    'libkolab',              // wymagane przez calendar
+    'calendar',              // kolab/calendar, sterownik database
+    'managesieve',           // filtry i autoodpowiedź (tylko dPoczta; sdata nie ma ManageSieve)
+    'nextcloud_attachments', // duże załączniki jako link do chmury
+    'contextmenu',           // menu pod prawym przyciskiem
+    'thunderbird_labels',    // etykiety jak w Thunderbirdzie
+    'persistent_login',      // „Zapamiętaj mnie” (tokeny, 7 dni)
+    'identity_select',       // tożsamość nadawcy wg adresu, na który przyszła wiadomość
     'archive',
     'zipdownload',
     'markasjunk',
@@ -87,3 +99,18 @@ $config['feer_signature_url'] = 'https://szo.feer.org.pl/api/internal/rc_signatu
 $config['feer_signature_key_file'] = '/usr/home/feer/roundcube/secrets/szo-key';
 // Pisanie w HTML, żeby stopka z logo nie zamieniała się w tekst
 $config['htmleditor'] = 1;
+
+// Filtry (managesieve): serwer IMAP zalogowanego (%h), port 4190, STARTTLS.
+// dPoczta: Dovecot Pigeonhole. sdata (titan) ManageSieve nie ma, @stud zobaczy błąd połączenia w Filtrach.
+$config['managesieve_host'] = 'tls://%h';
+$config['managesieve_port'] = 4190;
+$config['managesieve_vacation'] = 1;   // zakładka Autoodpowiedź obok Filtrów
+$config['managesieve_forward'] = 1;    // zakładka Przekierowanie
+
+// Lista wiadomości domyślnie w wątkach (zamiast wtyczki threading_as_default)
+$config['default_list_mode'] = 'threads';
+$config['autoexpand_threads'] = 0;
+
+// Zebrane adresy (wbudowane od 1.5, zamiast wtyczki automatic_addressbook)
+$config['collected_recipients'] = true;
+$config['collected_senders'] = true;

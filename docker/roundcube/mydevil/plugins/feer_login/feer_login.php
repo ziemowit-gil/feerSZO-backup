@@ -19,6 +19,28 @@ class feer_login extends rcube_plugin
     {
         $this->add_hook('authenticate', [$this, 'authenticate']);
         $this->add_hook('template_object_loginform', [$this, 'loginform']);
+        $this->add_hook('render_page', [$this, 'render_page']);
+    }
+
+    /**
+     * Teksty pola „Zapamiętaj” wtyczki persistent_login (dokłada je jej skrypt):
+     * neutralne płciowo i z czasem ważności. Podmiana w render_page, bo wtyczka
+     * ładuje swoje tłumaczenie później niż feer_login.
+     */
+    public function render_page(array $args): array
+    {
+        if ($args['template'] !== 'login') {
+            return $args;
+        }
+        $rc    = rcmail::get_instance();
+        $days  = max(1, (int) round((int) $rc->config->get('ifpl_login_expire', 604800) / 86400));
+        $texts = [
+            'persistent_login.ifpl_rememberme'      => "Nie wylogowuj mnie przez {$days} dni",
+            'persistent_login.ifpl_rememberme_hint' => 'Nie zaznaczaj na wspólnym ani publicznym komputerze.',
+        ];
+        $rc->load_language(null, [], $texts);   // 3. parametr nadpisuje, 2. tylko dokłada brakujące
+        $rc->output->add_label(...array_keys($texts));
+        return $args;
     }
 
     /**
@@ -47,6 +69,15 @@ class feer_login extends rcube_plugin
             . 'Sam login, np. jan.kowalski, oznacza @feer.org.pl.</p>'
             . '</div>';
         $html = preg_replace('#<table>#', $intro . '<table>', $html, 1);
+
+        // persistent_login dokłada wiersz z ukrytym <label for="rcmloginuser">Username</label>,
+        // przez co pole e-mail ma dwie etykiety (czytnik: „Adres e-mail Username”). Usuwamy go
+        // po jej skrypcie (ten sam zdarzenie init, więc setTimeout).
+        $html .= '<script>(function(){if(!window.rcmail)return;rcmail.addEventListener("init",function(){'
+            . 'setTimeout(function(){var f=document.getElementById("_ifpl");if(!f)return;'
+            . 'var r=f.closest("tr");if(!r)return;r.classList.add("feer-remember");'
+            . 'r.querySelectorAll("label[for=rcmloginuser]").forEach(function(l){var t=l.closest("td");(t||l).remove();});'
+            . '},0);});})();</script>';
 
         $args['content'] = $html;
         return $args;
