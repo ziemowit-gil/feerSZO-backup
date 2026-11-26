@@ -42,3 +42,67 @@ body:not([data-themes*="dark"]) .fc .fc-scrollgrid,
 body:not([data-themes*="dark"]) .fc .fc-col-header-cell,
 body:not([data-themes*="dark"]) .fc .fc-timegrid-slot,
 body:not([data-themes*="dark"]) .fc .fc-daygrid-day { background-color: #ffffff; }
+
+/* ── Wyskakujące okienka (WCAG 2.2 AA) ───────────────────────────────────────────────────────────
+ * Dialogi/okna (NcModal, NcDialog), dymki (NcPopover/v-popper), menu „…” (NcActions), powiadomienia (toastify).
+ * Pułapka fokusu i Esc są w komponentach Nextclouda; tu: kontrast (1.4.3, 1.4.11), fokus (2.4.7, 2.4.11),
+ * rozmiar celów (2.5.8), widoczność okna na tle, ograniczenie ruchu.
+ */
+body:not([data-themes*="dark"]) .modal-mask { background-color: rgba(15, 23, 42, .55) !important; }
+body:not([data-themes*="dark"]) .modal-container,
+body:not([data-themes*="dark"]) .dialog {
+	background-color: #ffffff !important;
+	color: #111827;
+	border: 1px solid #64748B;
+	box-shadow: 0 12px 40px rgba(15, 23, 42, .35) !important;
+}
+.modal-container h2, .modal-container h3, .dialog__name { color: inherit; }
+.modal-container__close, .modal-header .header-close, .dialog .modal-container__close {
+	min-width: 44px !important; min-height: 44px !important;
+}
+
+/* Dymki i menu „…” */
+body:not([data-themes*="dark"]) .v-popper__popper .v-popper__inner {
+	background-color: #ffffff !important;
+	color: #111827 !important;
+	border: 1px solid #64748B !important;
+	box-shadow: 0 8px 24px rgba(15, 23, 42, .25) !important;
+}
+body:not([data-themes*="dark"]) .v-popper__popper .v-popper__arrow-outer { border-color: #64748B !important; }
+.v-popper__popper .action-button,
+.v-popper__popper .action-link,
+.v-popper__popper .action-router,
+.v-popper__popper .action-checkbox,
+.v-popper__popper .action-radio,
+.v-popper__popper [role="menuitem"] { min-height: 44px; }
+body:not([data-themes*="dark"]) .v-popper__popper .action-text__longtext,
+body:not([data-themes*="dark"]) .v-popper__popper .action-button__longtext,
+body:not([data-themes*="dark"]) .v-popper__popper .action-text__description { color: #4B5563 !important; }
+
+/* Powiadomienia w rogu (toast) */
+body:not([data-themes*="dark"]) .toastify.toast,
+body:not([data-themes*="dark"]) .toastify {
+	background-color: #ffffff !important;
+	color: #111827 !important;
+	border: 1px solid #64748B !important;
+	border-inline-start-width: 6px !important;
+	box-shadow: 0 8px 24px rgba(15, 23, 42, .25) !important;
+}
+body:not([data-themes*="dark"]) .toastify.toast-error { border-inline-start-color: #B91C1C !important; }
+body:not([data-themes*="dark"]) .toastify.toast-success { border-inline-start-color: #15803D !important; }
+body:not([data-themes*="dark"]) .toastify.toast-warning { border-inline-start-color: #B45309 !important; }
+body:not([data-themes*="dark"]) .toastify.toast-info { border-inline-start-color: #1559D6 !important; }
+.toastify .toast-close { min-width: 44px; min-height: 44px; opacity: 1 !important; }
+
+/* Fokus widoczny we wszystkich okienkach */
+.modal-container :focus-visible,
+.dialog :focus-visible,
+.v-popper__popper :focus-visible,
+.toastify :focus-visible {
+	outline: 3px solid #1559D6 !important;
+	outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.modal-mask, .modal-container, .v-popper__popper, .toastify { transition: none !important; animation: none !important; }
+}
