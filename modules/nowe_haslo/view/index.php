@@ -37,6 +37,7 @@ if ($noRandom) $mSel = 'own';
 <style>
   .pvm fieldset.nh-set{border:0;margin:0 0 1.1rem;padding:0}
   .pvm fieldset.nh-set>legend{font-weight:600;font-size:1rem;margin:0 0 .4rem;padding:0}
+  .pvm fieldset.nh-set>legend.nh-step__h{font-size:1.5rem;margin:0 0 .8rem}
   .pvm .nh-opt{display:flex;gap:.6rem;align-items:flex-start;margin:.25rem 0;padding:.55rem .7rem;border:2px solid var(--pvm-line);background:#fff;max-width:36rem}
   .pvm .nh-opt:has(input:checked){border-color:var(--m-blue);background:var(--pvm-light)}
   .pvm .nh-opt input{width:1.25rem;height:1.25rem;margin-top:.15rem;flex-shrink:0;accent-color:var(--m-blue)}
@@ -58,7 +59,7 @@ if ($noRandom) $mSel = 'own';
   .pvm form.nh-wiz{background:#fff;padding:0}
   .pvm .nh-wiz .nh-grid{grid-template-columns:1fr}
   .pvm .nh-prog{margin:0 0 .4rem;font-size:.85rem;font-weight:600;color:var(--pvm-muted);text-transform:uppercase;letter-spacing:.06em}
-  .pvm .dm-path{border-bottom:0;gap:.5rem}
+  .pvm .dm-path{border-bottom:0;gap:.5rem;overflow:visible}
   .pvm .dm-path li{flex:1;display:flex;align-items:center;gap:.5rem;font-size:.95rem;font-weight:600;padding:.6rem .75rem;border-bottom:0;border-top:4px solid #D1D5DB;color:var(--pvm-muted)}
   .pvm .dm-path li[hidden]{display:none}
   .pvm .dm-path li.done{border-top-color:#1557D0;color:var(--pvm-ink)}
@@ -153,20 +154,13 @@ if ($noRandom) $mSel = 'own';
 <main id="tresc" class="pvm dm">
   <div class="mt-head">
     <div>
-      <div class="mt-kicker">Konta Fundacji</div>
       <h1 class="mt-title">Nowe hasło</h1>
-      <p class="mt-lead">Tu zmienisz hasło do logowania jednokrotnego i chmury plików albo hasło do poczty.
-        <?php if ($mode === 'user'): ?>Zmienisz je od razu, bez kodu. Możesz też ustawić jedno hasło do wszystkiego.
-        <?php else: ?>Najpierw potwierdzimy, że to Ty: danymi z umowy z Fundacją i kodem.
+      <p class="mt-lead"><?php if ($mode === 'user'): ?>Wybierz hasło i ustaw nowe. Bez kodu.
+        <?php else: ?>Tu zmienisz hasło do logowania jednokrotnego i chmury plików albo hasło do poczty. Najpierw potwierdzimy, że to Ty: danymi z umowy z Fundacją i kodem.
         Przy haśle do poczty kod przychodzi SMS-em (a gdy nie mamy numeru, na prywatny e-mail), przy haśle logowania jednokrotnego e-mailem.<?php endif; ?></p>
     </div>
   </div>
 
-  <div class="dm-msg dm-msg--info" role="note">
-    <i class="bi bi-cone-striped" aria-hidden="true"></i>
-    <div><strong>To nowy system — mogą zdarzać się błędy.</strong> Mechanizm zmiany haseł dopiero wdrażamy i nie jest jeszcze doskonały.
-      Jeśli coś nie zadziała, spróbuj za kilka minut albo napisz do <a href="<?= h(APP_URL . '/helpdesk/new.php') ?>">Helpdesku IT</a> — pomożemy.</div>
-  </div>
   <?php if (!empty($initial['rows'])): /* hasła startowe — NoweHasloInitial (zachęta, po GRACE_DAYS blokada panelu) */ ?>
     <div class="dm-msg dm-msg--<?= $initial['force'] ? 'danger' : 'warning' ?>" role="<?= $initial['force'] ? 'alert' : 'status' ?>">
       <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
@@ -246,21 +240,21 @@ if ($noRandom) $mSel = 'own';
 
     <?php if ($hasSso || $hasMail): ?>
     <section class="dm-sec" aria-labelledby="hChg" id="zmiana">
-      <h2 id="hChg" class="mt-h2">Zmień <b>hasło</b></h2>
+      <h2 id="hChg" class="visually-hidden">Zmień hasło</h2>
 
       <?php if ($mode === 'user'): /* zalogowany: kreator 1) które hasło 2) nowe hasło 3) gotowe — bez kodu (NoweHasloController::changePost) */
         $initSys = array_column($initial['rows'] ?? [], 'system');
         $cards = [
           'sso'  => ['icon' => 'bi-cloud-check', 'title' => 'Logowanie jednokrotne i chmura plików', 'ok' => $okSso,
                      'login' => $acc ? $acc['login'] : '', 'start' => in_array('sso', $initSys, true),
-                     'desc' => 'Hasło, które wpisujesz na niebieskiej stronie logowania „Zaloguj się do usług Fundacji FEER”: SZO, chmura plików i inne aplikacje Fundacji.', 'none' => 'Nie masz jeszcze tego konta.'],
+                     'desc' => 'SZO, chmura plików i inne aplikacje Fundacji.', 'none' => 'Nie masz jeszcze tego konta.'],
           'mail' => ['icon' => 'bi-envelope', 'title' => 'Poczta', 'ok' => $okMail,
                      'login' => $acc ? $acc['mailbox'] : '', 'start' => in_array('poczta', $initSys, true),
-                     'desc' => 'Skrzynka pocztowa. Hasło musi być inne niż do logowania jednokrotnego.', 'none' => 'Nie masz skrzynki pocztowej Fundacji.'],
+                     'desc' => 'Osobne hasło do skrzynki.', 'none' => 'Nie masz skrzynki pocztowej Fundacji.'],
           // jedno hasło do wszystkiego (polecenie 2026-11-27): tylko gdy są oba konta, w kroku 2 trzy potwierdzenia
           'all'  => ['icon' => 'bi-key', 'title' => 'Jedno hasło do wszystkiego', 'ok' => $okSso && $okMail,
                      'login' => $acc ? $acc['login'] : '', 'start' => false,
-                     'desc' => 'To samo hasło do poczty, SZO, logowania jednokrotnego i chmury. Wygodniej, ale mniej bezpiecznie.',
+                     'desc' => 'To samo hasło wszędzie. Wygodniej, ale mniej bezpiecznie.',
                      'none' => 'Potrzebne są konto logowania jednokrotnego i skrzynka pocztowa.'],
         ];
         $done = $flash && $flash['type'] === 'success';
@@ -280,12 +274,12 @@ if ($noRandom) $mSel = 'own';
         </ol>
 
         <form method="post" action="<?= h(route('nh.change')) ?>" id="nhWiz" class="nh-wiz" novalidate data-step="<?= h($wKey) ?>">
-          <p class="nh-prog" id="nhProg" aria-live="polite"></p>
+          <p class="visually-hidden" id="nhProg" aria-live="polite"></p>
           <?= Router::csrfField() ?><input type="hidden" name="mode" value="own" id="nhMode">
 
           <div class="nh-step" data-s="1"<?= $wKey === '1' ? '' : ' hidden' ?>>
             <fieldset class="nh-set">
-              <legend>Które hasło chcesz zmienić?</legend>
+              <legend class="nh-step__h">Które hasło zmieniasz?</legend>
               <div class="nh-grid">
               <?php foreach ($cards as $t => $c): ?>
                 <label class="nh-tile<?= $c['ok'] ? '' : ' nh-tile--off' ?>">
@@ -293,7 +287,6 @@ if ($noRandom) $mSel = 'own';
                   <span class="nh-tile__b">
                     <span class="nh-tile__h"><i class="bi <?= $c['icon'] ?>" aria-hidden="true"></i> <?= h($c['title']) ?>
                       <?php if ($c['start'] && $c['ok']): ?><span class="nh-badge">hasło startowe</span><?php endif; ?></span>
-                    <?php if ($c['login'] !== ''): ?><span class="nh-tile__l"><?= h($c['login']) ?></span><?php endif; ?>
                     <span class="nh-tile__d"><?= h($c['ok'] ? $c['desc'] : $c['none']) ?></span>
                   </span>
                 </label>
@@ -450,13 +443,9 @@ if ($noRandom) $mSel = 'own';
 </main>
 
 <aside class="nh-info" aria-labelledby="nhInfoH">
-  <h2 id="nhInfoH">Ważne informacje</h2>
-  <p class="nh-info__lead">Hasło logowania jednokrotnego wpisujesz na niebieskiej stronie „Zaloguj się do usług Fundacji FEER”. Tym jednym loginem i hasłem wejdziesz do SZO, chmury plików i innych aplikacji Fundacji.</p>
+  <h2 id="nhInfoH">Warto wiedzieć</h2>
   <h3>Login</h3>
-  <p><?php if ($acc && $mode === 'user'): ?><strong class="nh-info__login"><?= h($acc['login']) ?></strong>.
-    <?php endif; ?>Twój adres e-mail w Fundacji. Zadziała też login z kreską dolną zamiast kropki, na przykład <code>jan_kowalski</code>.</p>
-  <h3>Poczta</h3>
-  <p>Hasło do poczty jest osobne<?= $mode === 'user' ? ', chyba że wybierzesz „Jedno hasło do wszystkiego”' : '' ?>.</p>
+  <p><?php if ($acc && $mode === 'user'): ?><strong class="nh-info__login"><?= h($acc['login']) ?></strong><?php else: ?>Twój adres e-mail w Fundacji<?php endif; ?></p>
   <h3>Dobre hasło</h3>
   <p>Co najmniej <?= NoweHaslo::MIN_LEN ?> znaków, małe i wielkie litery oraz cyfra. Bez imienia, nazwiska i loginu.</p>
   <h3>Pomoc</h3>
