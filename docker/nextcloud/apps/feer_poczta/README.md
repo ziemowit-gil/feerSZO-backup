@@ -1,7 +1,17 @@
-# feer_poczta — „Sprawdź pocztę” na pulpicie Nextclouda
+# feer_poczta — kafle „Poczta” i „Komunikaty z SZO” na pulpicie Nextclouda
 
 Widżet pulpitu „Poczta” z jednym przyciskiem prowadzącym do https://poczta.feer.org.pl/.
 Pulpit NC 35 pokazuje przycisk typu `setup`, gdy widżet API nie ma elementów.
+
+## Komunikaty z SZO (od 1.1.0)
+
+Widżet `feer_komunikaty` pobiera `{szo_url}/api/internal/nc_komunikaty.php?uid=…&email=…`
+z nagłówkiem `X-Internal-Key` (ustawienie SZO `roundcube_signature_key`). Wyniki w cache 5 min.
+
+```
+php occ config:app:set feer_poczta szo_key --sensitive --value "$(cat ~/roundcube/secrets/szo-key)"
+php occ config:app:set feer_poczta szo_url --value https://szo.feer.org.pl   # domyślnie
+```
 
 ## Wdrożenie (nc.feer.org.pl na mydevil)
 
