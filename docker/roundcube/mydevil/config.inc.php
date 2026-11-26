@@ -76,11 +76,13 @@ $config['plugins'] = [
     'managesieve',           // filtry i autoodpowiedź (tylko dPoczta; sdata nie ma ManageSieve)
     'nextcloud_attachments', // duże załączniki jako link do chmury
     'feer_cloud_save',       // połączenie z chmurą (Login Flow, Logto) + „Zapisz w chmurze” (własny)
+    'feer_compose',          // okno pisania jak w Outlooku, S/MIME przy Wyślij (własny)
     'contextmenu',           // menu pod prawym przyciskiem
     'thunderbird_labels',    // etykiety jak w Thunderbirdzie
     'persistent_login',      // „Zapamiętaj mnie” (tokeny, 7 dni)
     'twofactor_gauthenticator', // 2FA: kod TOTP z aplikacji (dobrowolne; GitHub b6afa8f44b)
     'mimeshield',            // S/MIME: podpis, weryfikacja, szyfrowanie (takenek/mimeshield 1.0.3)
+    'feer_cert',             // certyfikaty S/MIME z urzędu FEER (Ustawienia → Certyfikat FEER; własny)
     'identity_select',       // tożsamość nadawcy wg adresu, na który przyszła wiadomość
     'archive',
     'zipdownload',
@@ -149,3 +151,10 @@ $config['dont_override'] = ['drafts_mbox', 'sent_mbox', 'junk_mbox', 'trash_mbox
 $config['feer_directory_url'] = 'https://szo.feer.org.pl/api/internal/rc_directory.php';
 $config['feer_directory_hosts'] = ['imap.dpoczta.pl'];
 $config['feer_directory_ttl'] = 3600;
+
+// Urząd certyfikacji FEER (feer_cert): FEER S/MIME CA 1 ← FEER Root CA (tools/feer_ca_init.php)
+$config['feer_cert_ca_dir'] = '/usr/home/feer/roundcube/secrets/feer-ca';
+$config['feer_cert_hosts'] = ['imap.dpoczta.pl'];
+$config['feer_cert_days'] = 397;
+$config['feer_cert_max_per_30d'] = 3;
+$config['feer_cert_root_url'] = 'https://szo.feer.org.pl/assets/ca/feer-root-ca.crt';

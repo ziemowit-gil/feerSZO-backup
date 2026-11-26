@@ -1,0 +1,26 @@
+<?php
+$labels = [];
+$labels['title'] = 'Certyfikat FEER';
+$labels['lead'] = 'Certyfikat S/MIME z urzędu certyfikacji Fundacji FEER: podpisujesz nim wiadomości (odbiorca widzi, że to naprawdę Ty) i odbierasz wiadomości zaszyfrowane. Wydawany od ręki na adres Twojej skrzynki, ważny rok.';
+$labels['trustnote'] = 'W poczcie FEER certyfikaty FEER są zaufane od razu. Odbiorcy spoza FEER zobaczą podpis jako niezaufany, dopóki nie zainstalują certyfikatu głównego FEER (sprawdź odcisk SHA-256 poniżej).';
+$labels['rootdl'] = 'Pobierz certyfikat główny FEER';
+$labels['yourcerts'] = 'Twoje certyfikaty';
+$labels['serial'] = 'Numer';
+$labels['validto'] = 'Ważny do';
+$labels['status'] = 'Stan';
+$labels['active'] = 'aktywny';
+$labels['expired'] = 'wygasł';
+$labels['revoked'] = 'unieważniony';
+$labels['newcert'] = 'Nowy certyfikat';
+$labels['issuefor'] = 'Certyfikat zostanie wydany na adres %s i od razu dodany do Twojej poczty (Ustawienia → Preferencje → Szyfrowanie).';
+$labels['p12pass'] = 'Hasło do pliku .p12 (opcjonalnie)';
+$labels['p12hint'] = 'Podaj hasło (min. 8 znaków), jeśli chcesz też pobrać plik .p12 do Outlooka, Thunderbirda albo telefonu. Hasło nie jest nigdzie zapisywane.';
+$labels['issue'] = 'Wydaj certyfikat';
+$labels['issued'] = 'Certyfikat FEER wydany i dodany do poczty.';
+$labels['issuednop12'] = 'Certyfikat wydany i dodany do poczty, ale nie udało się przygotować pliku .p12.';
+$labels['passshort'] = 'Hasło do pliku .p12 musi mieć co najmniej 8 znaków.';
+$labels['ratelimit'] = 'Wydano już limit certyfikatów na 30 dni. Jeśli potrzebujesz kolejnego, zgłoś to w Helpdesku IT.';
+$labels['nomimeshield'] = 'Obsługa S/MIME w poczcie jest wyłączona. Zgłoś to w Helpdesku IT.';
+$labels['importerror'] = 'Certyfikat wydany, ale nie udało się dodać go do poczty. Zgłoś to w Helpdesku IT.';
+$labels['notallowed'] = 'Certyfikaty FEER są dostępne tylko dla skrzynek @feer.org.pl.';
+$labels['error'] = 'Nie udało się wydać certyfikatu. Spróbuj ponownie.';

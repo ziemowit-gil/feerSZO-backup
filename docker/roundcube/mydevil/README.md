@@ -134,6 +134,27 @@ Instalator wtyczek (roundcube/plugin-installer) przepisuje `$config['plugins']` 
 config/config.inc.php.link; cp ~/roundcube/config/config.inc.php config/`, po: przywrócić dowiązanie,
 wtyczkę dopisać ręcznie, tabele z `SQL/mysql.initial.sql` wtyczki.
 
+## Urząd certyfikacji FEER (feer_cert)
+
+`FEER Root CA` (RSA 4096, do 2036-11-26, SHA-256 5B:79:87:97:0C:53:95:4D:29:D8:E2:54:97:D2:7E:E1:7F:86:D3:9B:B2:73:58:68:AB:4D:69:EF:38:06:A2:6E)
+→ `FEER S/MIME CA 1` (RSA 4096, do 2031-11-26, pathlen 0, emailProtection). Pliki w
+`secrets/feer-ca/` (tworzy `tools/feer_ca_init.php`, nie nadpisuje): `root.key` zaszyfrowany hasłem z
+`root.pass` — OBA WYNIEŚĆ OFFLINE (root potrzebny tylko do odnowienia CA 1), `issuing.key` 0400 używa wtyczka.
+Publiczne: repo `ca/feer-root-ca.crt`, `ca/feer-smime-ca1.crt`; w mimeshield root w `mimeshield_ca_bundle`,
+CA 1 w `smime-intermediates.pem`. Do pobrania dla odbiorców: https://szo.feer.org.pl/assets/ca/feer-root-ca.crt
+(artykuł /uslugi-it/uslugi/moja-poczta/certyfikat-feer); static.php Roundcube nie wydaje `.crt`.
+
+Wtyczka: Ustawienia → Certyfikat FEER (tylko `feer_cert_hosts`): klucz RSA 3072 + certyfikat na adres
+skrzynki (397 dni, SAN e-mail), od razu `mimeshield services()->keys()->import()`, opcjonalnie .p12 do
+pobrania (hasło nie jest zapisywane). Rejestr `feer_cert_issued`, limit `feer_cert_max_per_30d`.
+Brak CRL/unieważniania — do zrobienia, gdyby było potrzebne (kolumna `revoked_at` jest).
+
+## Okno pisania (feer_compose)
+
+„Wyślij” na górze obok pól Od/Do/Temat (jak w Outlooku), zwarte etykiety, edytor do dołu okna,
+S/MIME (mimeshield `#mimeshield-compose`) przeniesione do paska pod tematem, przy braku certyfikatu
+komunikat i link „Wydaj certyfikat FEER”. Przenosi oryginalne elementy DOM; style w feer_theme.css.
+
 ## Wygląd
 
 `feer_theme` = nakładka CSS na skin Elastic (barwy SZO, karta logowania z logo, tryb ciemny).

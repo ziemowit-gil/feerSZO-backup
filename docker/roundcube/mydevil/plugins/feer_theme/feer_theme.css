@@ -170,6 +170,19 @@ a:hover, .link:hover { color: var(--feer-navy); }
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
 }
 
+/* Dolne przyciski szyny (Tryb ciemny, O programie, Wyloguj): Elastic daje im własne szare tło
+   i stałą szerokość, przez co wystawały poza szynę — ten sam granat i szerokość co szyna */
+#taskmenu .special-buttons {
+  background: var(--feer-navy-dark) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  left: 0 !important;
+  right: 0 !important;
+  box-sizing: border-box !important;
+  border-top: 1px solid rgba(255, 255, 255, .12);
+}
+#taskmenu .special-buttons a { width: auto !important; }
+
 /* Znak FEER nad szyną (skin_logo '*' = mark.png, czarny) — na granacie na biało */
 #layout-menu #logo {
   filter: invert(1);
@@ -648,6 +661,72 @@ body.task-login #messagestack { z-index: 10; }
 .feer-cloud-dialog ul { margin: 0 0 .8rem 1.1rem; padding: 0; line-height: 1.6; }
 .feer-cloud-dialog .hint { font-size: .85rem; color: var(--feer-muted); }
 html.dark-mode .feer-cloud-dialog .hint { color: #cbd5e1; }
+
+/* Ustawienia → Certyfikat FEER (feer_cert) */
+#settings-menu a.feer-cert:before, .listing li.feer-cert a:before { content: "\f2c2"; }
+.feer-cert { max-width: 46rem; }
+.feer-cert .feer-cert-title { font-size: 1.35rem; margin: 0 0 .5rem; }
+.feer-cert .feer-cert-h { font-size: 1.05rem; margin: 1.5rem 0 .6rem; }
+.feer-cert .feer-cert-note { background: var(--feer-blue-bg); border-left: 4px solid var(--feer-blue); border-radius: var(--feer-radius); padding: .75rem 1rem; margin: 1rem 0; font-size: .9rem; }
+.feer-cert .feer-cert-note p { margin: 0 0 .35rem; }
+.feer-cert .feer-cert-fp { font-size: .75rem; word-break: break-all; }
+.feer-cert .records-table { width: 100%; }
+html.dark-mode .feer-cert .feer-cert-note { color: #dbeafe; }
+
+/* Okno pisania jak w Outlooku (feer_compose): „Wyślij” obok pól, zwarte nagłówki, S/MIME pod tematem */
+body.feer-compose #compose-headers { padding: .75rem 1rem .25rem !important; }
+body.feer-compose .feer-compose-top { display: flex; gap: 1rem; align-items: stretch; }
+body.feer-compose .feer-compose-send { flex: 0 0 6.5rem; display: flex; }
+body.feer-compose .feer-compose-send .send {
+  width: 100%; display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: .35rem;
+  margin: 0 !important; padding: .75rem .5rem !important; font-size: 1rem !important; font-weight: 700 !important;
+  border-radius: var(--feer-radius) !important; min-height: 100%;
+}
+body.feer-compose .feer-compose-send .send:before { font-size: 1.4rem; margin: 0 !important; }
+body.feer-compose .feer-compose-top > .compose-headers { flex: 1; min-width: 0; }
+body.feer-compose .compose-headers .form-group { margin-bottom: .35rem !important; align-items: center; }
+body.feer-compose .compose-headers .col-form-label { flex: 0 0 4.5rem !important; max-width: 4.5rem !important; padding-right: .5rem; color: var(--feer-muted); font-weight: 600; }
+body.feer-compose .compose-headers .form-group > div:not(.col-form-label) { flex: 1 1 auto !important; max-width: none !important; }
+/* stary rząd pod edytorem: zostaje tylko „Otwórz w nowym oknie” */
+body.feer-compose #layout-content .formbuttons { padding-top: .25rem !important; justify-content: flex-end; }
+/* edytor do dołu okna */
+body.feer-compose #composebodycontainer .tox-tinymce,
+body.feer-compose #composebodycontainer textarea#composebody { min-height: calc(100vh - 21rem) !important; }
+
+/* Pasek S/MIME pod tematem */
+body.feer-compose .feer-smime-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.25rem;
+  margin: .5rem 0 .25rem 7.5rem; padding: .45rem .75rem;
+  background: var(--feer-bg); border: 1px solid var(--feer-border); border-radius: var(--feer-radius);
+}
+body.feer-compose .feer-smime-bar #mimeshield-compose { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem 1.25rem; border: 0; margin: 0; padding: 0; min-width: 0; }
+body.feer-compose .feer-smime-bar #mimeshield-compose legend,
+body.feer-compose .feer-smime-bar .feer-smime-legend { float: none; width: auto; margin: 0 .5rem 0 0; padding: 0; font-size: .85rem; font-weight: 700; color: var(--feer-navy); border: 0; }
+body.feer-compose .feer-smime-bar #mimeshield-compose .form-group { display: flex; align-items: center; gap: .4rem; margin: 0 !important; flex-direction: row-reverse; }
+body.feer-compose .feer-smime-bar #mimeshield-compose .col-form-label,
+body.feer-compose .feer-smime-bar #mimeshield-compose label { flex: none !important; max-width: none !important; padding: 0 !important; font-size: .875rem; }
+body.feer-compose .feer-smime-bar #mimeshield-compose [class*="col-"] { flex: none !important; max-width: none !important; width: auto !important; padding: 0 !important; }
+body.feer-compose .feer-smime-bar #mimeshield-status,
+body.feer-compose .feer-smime-bar .mimeshield-recipients { flex-basis: 100%; font-size: .8125rem; color: var(--feer-muted); }
+body.feer-compose .feer-smime-bar #mimeshield-status:empty,
+body.feer-compose .feer-smime-bar .mimeshield-recipients:empty { display: none; }
+body.feer-compose .feer-smime-nocert {
+  flex-basis: 100%; font-size: .875rem; color: #78350f; background: #fffbeb; border-left: 4px solid #d97706;
+  border-radius: var(--feer-radius); padding: .4rem .65rem;
+}
+body.feer-compose .feer-smime-nocert[hidden] { display: none; }
+body.feer-compose .feer-smime-nocert a { color: #1d4ed8; font-weight: 700; text-decoration: underline; }
+html.dark-mode body.feer-compose .feer-smime-bar { background: #0f172a; }
+html.dark-mode body.feer-compose .feer-smime-bar #mimeshield-compose legend { color: #93c5fd; }
+html.dark-mode body.feer-compose .feer-smime-nocert { background: #422006; color: #fde68a; }
+html.dark-mode body.feer-compose .feer-smime-nocert a { color: #93c5fd; }
+
+@media (max-width: 768px) {
+  body.feer-compose .feer-compose-top { flex-direction: column; }
+  body.feer-compose .feer-compose-send { flex-basis: auto; }
+  body.feer-compose .feer-compose-send .send { flex-direction: row; }
+  body.feer-compose .feer-smime-bar { margin-left: 0; }
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    11. Tryb ciemny (Ustawienia → Interfejs → tryb ciemny w Elastic)

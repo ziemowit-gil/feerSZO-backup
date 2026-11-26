@@ -1,0 +1,26 @@
+<?php
+$labels = [];
+$labels['title'] = 'FEER certificate';
+$labels['lead'] = 'An S/MIME certificate from the FEER Foundation certificate authority: sign your messages and receive encrypted mail. Issued instantly for your mailbox address, valid for one year.';
+$labels['trustnote'] = 'FEER certificates are trusted in FEER mail right away. Recipients outside FEER see the signature as untrusted until they install the FEER root certificate (check the SHA-256 fingerprint below).';
+$labels['rootdl'] = 'Download the FEER root certificate';
+$labels['yourcerts'] = 'Your certificates';
+$labels['serial'] = 'Serial';
+$labels['validto'] = 'Valid until';
+$labels['status'] = 'Status';
+$labels['active'] = 'active';
+$labels['expired'] = 'expired';
+$labels['revoked'] = 'revoked';
+$labels['newcert'] = 'New certificate';
+$labels['issuefor'] = 'The certificate will be issued for %s and added to your mail right away (Settings → Preferences → Encryption).';
+$labels['p12pass'] = '.p12 file password (optional)';
+$labels['p12hint'] = 'Enter a password (min. 8 characters) to also download a .p12 file for Outlook, Thunderbird or your phone. The password is not stored.';
+$labels['issue'] = 'Issue certificate';
+$labels['issued'] = 'FEER certificate issued and added to your mail.';
+$labels['issuednop12'] = 'Certificate issued and added to your mail, but the .p12 file could not be created.';
+$labels['passshort'] = 'The .p12 password must have at least 8 characters.';
+$labels['ratelimit'] = 'The certificate limit for 30 days has been reached. Contact the IT Helpdesk if you need another one.';
+$labels['nomimeshield'] = 'S/MIME support is disabled in mail. Contact the IT Helpdesk.';
+$labels['importerror'] = 'The certificate was issued but could not be added to your mail. Contact the IT Helpdesk.';
+$labels['notallowed'] = 'FEER certificates are available only for @feer.org.pl mailboxes.';
+$labels['error'] = 'Could not issue the certificate. Please try again.';
