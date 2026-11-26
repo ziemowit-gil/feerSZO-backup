@@ -1,5 +1,5 @@
 /* feer_accounts — Moje skrzynki (WCAG 2.2 AA: kontrast, fokus, cele ≥ 44 px) */
-#taskmenu a.feer-accounts:before, .feer-accounts .inner:before { content: "\f0e0"; }
+#taskmenu a.feer-accounts:before, .feer-accounts .inner:before { content: "\f013"; } /* zębatka (ustawienia skrzynek) */
 #taskmenu a.feer-accounts:after { content: ""; }
 .feer-acc .feer-acc-title { font-size: 1.5rem; font-weight: 700; margin: 0 0 .5rem; }
 .feer-acc .feer-acc-h { font-size: 1.15rem; font-weight: 700; margin: 1.5rem 0 .75rem; }
