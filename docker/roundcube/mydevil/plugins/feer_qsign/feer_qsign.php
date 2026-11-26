@@ -17,16 +17,16 @@
  * JS odznacza, serwer odmawia. Plugin musi być PO mimeshield na liście plugins.
  *
  * Konfiguracja (config.inc.php):
- *   feer_qsign_users          — loginy, które mogą włączyć opcję (pusta lista = wszyscy)
+ *   feer_qsign_users          — loginy z dostępem do opcji (pusta lista = wszyscy)
  *
- * Użytkownik włącza opcję sam: Ustawienia → Preferencje → Tworzenie wiadomości (domyślnie
- * wyłączona, bo przeglądarka pyta o dostęp do sieci lokalnej przy łączeniu z agentem).
+ * Opcja jest w oknie „Podpis cyfrowy” (feer_smime_ui). Z agentem łączy się dopiero po jej
+ * zaznaczeniu, więc pytanie przeglądarki o sieć lokalną widzi tylko ten, kto jej używa.
  *   feer_qsign_agent          — adres agenta (domyślnie http://127.0.0.1:52118)
  *   feer_qsign_require_qualified — wymagaj qcStatements w certyfikacie (domyślnie true)
  */
 class feer_qsign extends rcube_plugin
 {
-    public $task = 'mail|settings';
+    public $task = 'mail';
 
     private const MAX_BYTES = 40 * 1024 * 1024;
     private const TTL = 7200;
@@ -43,14 +43,6 @@ class feer_qsign extends rcube_plugin
         }
         $this->add_texts('localization/', true);
 
-        if ($this->rc->task === 'settings') {
-            $this->add_hook('preferences_list', [$this, 'preferences_list']);
-            $this->add_hook('preferences_save', [$this, 'preferences_save']);
-            return;
-        }
-        if (!$this->rc->config->get('feer_qsign_enabled')) {
-            return;
-        }
         if ($this->rc->action === 'compose') {
             $this->add_hook('template_container', [$this, 'template_container']);
             $this->include_script('feer_qsign.js');
@@ -71,32 +63,6 @@ class feer_qsign extends rcube_plugin
         }
         $users = array_map('strtolower', (array) $this->rc->config->get('feer_qsign_users', []));
         return !$users || in_array(strtolower((string) $this->rc->get_user_name()), $users, true);
-    }
-
-    // ── preferencje ─────────────────────────────────────────────────────────
-
-    public function preferences_list(array $p): array
-    {
-        if ($p['section'] !== 'compose') {
-            return $p;
-        }
-        $chk = new html_checkbox(['name' => '_feer_qsign_enabled', 'id' => 'rcmfd_feer_qsign', 'value' => '1']);
-        $p['blocks']['feer_qsign'] = [
-            'name' => rcube::Q($this->gettext('title')),
-            'options' => ['feer_qsign_enabled' => [
-                'title' => html::label('rcmfd_feer_qsign', rcube::Q($this->gettext('prefenable'))),
-                'content' => $chk->show($this->rc->config->get('feer_qsign_enabled') ? '1' : ''),
-            ]],
-        ];
-        return $p;
-    }
-
-    public function preferences_save(array $p): array
-    {
-        if ($p['section'] === 'compose') {
-            $p['prefs']['feer_qsign_enabled'] = (bool) rcube_utils::get_input_value('_feer_qsign_enabled', rcube_utils::INPUT_POST);
-        }
-        return $p;
     }
 
     // ── okno pisania ────────────────────────────────────────────────────────

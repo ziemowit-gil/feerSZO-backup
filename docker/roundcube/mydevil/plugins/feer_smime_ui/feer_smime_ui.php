@@ -2,6 +2,10 @@
 /**
  * feer_smime_ui — zwięzły wygląd S/MIME (mimeshield) w podglądzie wiadomości i oknie pisania.
  *
+ * Okno pisania: przycisk „Podpis cyfrowy” na pasku narzędzi otwiera okno z opcjami S/MIME
+ * (#mimeshield-compose, także wiersz feer_qsign). Pola wracają do ukrytego miejsca w formularzu
+ * po zamknięciu okna, więc wysyłka ich nie gubi.
+ *
  * Podgląd: zamiast plakietki z opisem i dużej ramki nad treścią jest sama kłódka obok nagłówków:
  * zielona zamknięta = podpis prawidłowy, certyfikat zaufany, adres zgodny (i poprawnie odszyfrowana),
  * czerwona otwarta z wykrzyknikiem = cokolwiek innego (podpis nieprawidłowy, niezaufany urząd,
@@ -30,11 +34,23 @@ class feer_smime_ui extends rcube_plugin
             return;
         }
         $this->include_stylesheet('feer_smime_ui.css');
-        if ($rc->action === 'compose') {
-            return;
-        }
         $this->add_texts('localization/', true);
         $this->include_script('feer_smime_ui.js');
+        if ($rc->action === 'compose') {
+            // Opcje S/MIME (mimeshield + feer_qsign) w wyskakującym oknie pod przyciskiem paska narzędzi.
+            $this->add_button([
+                'command' => 'plugin.feer_smime_ui-security',
+                'type' => 'link',
+                'class' => 'feer-smime-btn',
+                'classact' => 'feer-smime-btn',
+                'innerclass' => 'inner',
+                'label' => 'feer_smime_ui.security',
+                'title' => 'feer_smime_ui.security_title',
+                'tabindex' => '2',
+                'aria-haspopup' => 'dialog',
+            ], 'toolbar');
+            return;
+        }
         $this->add_hook('template_object_messageheaders', [$this, 'messageheaders']);
     }
 

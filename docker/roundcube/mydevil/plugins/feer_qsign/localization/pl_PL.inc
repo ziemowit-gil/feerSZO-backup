@@ -2,7 +2,6 @@
 $labels = [];
 $labels['option'] = 'Podpisz certyfikatem kwalifikowanym';
 $labels['title'] = 'Podpis kwalifikowany';
-$labels['prefenable'] = 'Pokazuj w oknie pisania opcję podpisu certyfikatem kwalifikowanym (wymaga programu SzoCert i PEM-HEART na tym komputerze)';
 $labels['intro'] = 'Wiadomość zostanie podpisana na Twoim komputerze w PEM-HEART (rSign). Klucz nie trafia na serwer poczty.';
 $labels['step_agent'] = 'Połączenie z programem SzoCert';
 $labels['step_confirm'] = 'Potwierdzenie w oknie SzoCert';

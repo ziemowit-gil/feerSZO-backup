@@ -156,9 +156,10 @@ mimeshield). Klucz nie trafia na serwer: podpis składa PEM-HEART Signature (rSi
 użytkownika przez agenta SzoCert (`client-apps/szocert`, `szocert podpis`, 127.0.0.1:52118).
 Wynik to S/MIME `multipart/signed` z podpisem CAdES (RSA-SHA512 ze znacznikiem czasu CenCert).
 
-Włączenie: użytkownik sam w Ustawienia → Preferencje → Tworzenie wiadomości (`feer_qsign_enabled`,
-domyślnie wyłączone, bo łączenie z 127.0.0.1 wywołuje w Chrome pytanie o sieć lokalną).
-`feer_qsign_users` (lista loginów) może zawęzić, kto widzi tę preferencję.
+Opcje podpisu są w wyskakującym oknie „Podpis cyfrowy” (przycisk z kłódką na pasku narzędzi okna
+pisania, feer_smime_ui): podpis i szyfrowanie S/MIME (mimeshield) oraz podpis kwalifikowany. Pola
+siedzą w ukrytym `#feer-smime-holder` w formularzu, okno je pożycza. Agent dostaje zapytanie dopiero
+po zaznaczeniu opcji (wtedy Chrome pyta o sieć lokalną). `feer_qsign_users` może zawęzić dostęp.
 
 Przebieg wysyłki:
 1. Wyślij → `message_ready` (feer_qsign jest PO mimeshield) buduje kanoniczną część MIME klasami
@@ -194,7 +195,7 @@ czerwieni kłódki, informacja o nim zostaje w szczegółach. Wtyczka czyta wewn
 1.0.3 (`services()->incoming()->statuses()`): po aktualizacji mimeshield sprawdzić podgląd
 podpisanej wiadomości. Wyjątek = brak kłódki i widoczna zwykła plakietka mimeshield.
 
-Okno pisania: standardowy układ Elastic, S/MIME w panelu „Opcje i załączniki” jako zwarta karta.
+Okno pisania: standardowy układ Elastic, opcje S/MIME (i podpis kwalifikowany feer_qsign) w wyskakującym oknie pod przyciskiem „Podpis cyfrowy” na pasku narzędzi; przycisk zielony, gdy coś jest włączone.
 Przy certyfikacie w porządku widać tylko jego nazwę; wystawca i data ważności pokazują się, gdy
 certyfikat wygasa w ciągu 30 dni. Wcześniejszy układ „jak w Outlooku” (`feer_compose`) jest
 wyłączony (nie ma go w `plugins`; kod został w repo). Cofnięcie: dopisać `feer_compose` do

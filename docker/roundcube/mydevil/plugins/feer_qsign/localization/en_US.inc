@@ -2,7 +2,6 @@
 $labels = [];
 $labels['option'] = 'Sign with qualified certificate';
 $labels['title'] = 'Qualified signature';
-$labels['prefenable'] = 'Show the qualified certificate signing option when composing (requires SzoCert and PEM-HEART on this computer)';
 $labels['intro'] = 'The message is signed on your computer in PEM-HEART (rSign). The key never reaches the mail server.';
 $labels['step_agent'] = 'Connect to SzoCert';
 $labels['step_confirm'] = 'Confirm in the SzoCert window';

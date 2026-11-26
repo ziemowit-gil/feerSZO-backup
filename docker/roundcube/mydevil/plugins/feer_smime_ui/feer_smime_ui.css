@@ -117,3 +117,27 @@ html.dark-mode .feer-smime-lock:hover { background: #1e293b; border-color: #3341
   font-size: .8rem;
   color: #64748b;
 }
+
+/* ── Okno pisania: „Podpis cyfrowy” na pasku narzędzi, opcje w wyskakującym oknie ── */
+
+#feer-smime-holder[hidden] { display: none !important; }
+.toolbar a.feer-smime-btn:before { content: "\f023"; } /* kłódka (Font Awesome w Elastic) */
+.toolbar a.feer-smime-btn.feer-smime-on:before { color: #15803d; }
+.toolbar a.feer-smime-btn.feer-smime-on .inner { font-weight: 600; }
+html.dark-mode .toolbar a.feer-smime-btn.feer-smime-on:before { color: #4ade80; }
+
+/* W oknie: bez ramki karty i bez legendy (tytuł ma okno) */
+.popup #mimeshield-compose {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.popup #mimeshield-compose legend { display: none; }
+.popup #mimeshield-compose .form-group.row {
+  padding: .55rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+.popup #mimeshield-compose .form-group.row > .col-form-label { font-size: .95rem; }
+.popup #mimeshield-compose #mimeshield-status { margin-top: .6rem; }
+html.dark-mode .popup #mimeshield-compose .form-group.row { border-color: #334155; }
