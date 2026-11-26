@@ -2,7 +2,9 @@
  * feer_poczta — selektor aplikacji FEER zamiast menu „kafelki” Nextclouda (przycisk .app-menu__waffle w nagłówku).
  *
  * Lista aplikacji: stan początkowy core/apps (#initial-state-core-apps) — te same uprawnienia co w menu Nextclouda.
- * Układ: wyszukiwarka, grupy (Na co dzień · Dokumenty · Organizacja · FEER · Inne), duże pola z podpisem po polsku.
+ * Układ: wyszukiwarka, grupy (Utwórz · Na co dzień · Dokumenty · Organizacja · FEER · Inne), duże pola z podpisem po polsku.
+ * „Utwórz” = szybkie tworzenie Nextclouda (stan core/navigationActions): akcja z href → link, bez href → zdarzenie
+ * core:navigation:action na window._nc_event_bus (tak jak robi menu Nextclouda — obsługuje je właściwa aplikacja).
  * Ukryte: „Zespoły” Nextclouda (circles — zespoły są w Strukturze SZO); „Desktop” (desktop_workspace) = „Widok okien”.
  * WCAG 2.2 AA: role=dialog + aria-modal=false (okienko nie blokuje strony), nagłówki grup, aria-current dla bieżącej,
  * strzałki/Home/End w siatce, Esc i klik poza zamykają, fokus wraca na przycisk; linki zewnętrzne z opisem.
@@ -24,6 +26,33 @@
 		{ id: 'feer-zespoly', name: 'Zespoły', href: 'https://szo.feer.org.pl/org/teams.php', icon: 'M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 2c-2.3 0-7 1.2-7 3.5V19h14v-2.5C15 14.2 10.3 13 8 13zm8 0c-.3 0-.6 0-1 .1 1.2.8 2 2 2 3.4V19h6v-2.5c0-2.3-4.7-3.5-7-3.5z' },
 		{ id: 'feer-pomoc', name: 'Pomoc IT', href: 'https://szo.feer.org.pl/uslugi-it/', icon: 'M11 18h2v-2h-2v2zm1-16a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm0-14a4 4 0 0 0-4 4h2a2 2 0 1 1 4 0c0 2-3 1.8-3 5h2c0-2.2 3-2.5 3-5a4 4 0 0 0-4-4z' },
 	];
+
+	var ACTION_NAMES = {
+		'Text document': 'Dokument tekstowy', 'New text document': 'Dokument tekstowy', 'Document': 'Dokument',
+		'Spreadsheet': 'Arkusz', 'Presentation': 'Prezentacja', 'Diagram': 'Diagram', 'Event': 'Wydarzenie',
+		'Task': 'Zadanie', 'Contact': 'Kontakt', 'Note': 'Notatka', 'Folder': 'Folder', 'New folder': 'Folder',
+		'Prezentacje': 'Prezentacja', 'Wydarzenia': 'Wydarzenie',
+	};
+	var ICON_PLUS = 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z';
+
+	function readState(key) {
+		var inp = document.getElementById('initial-state-' + key);
+		if (!inp) return null;
+		try { return JSON.parse(decodeURIComponent(escape(window.atob(inp.value)))); } catch (e) { return null; }
+	}
+
+	function readActions() {
+		var raw = readState('core-navigationActions');
+		var list = Array.isArray(raw) ? raw : (raw ? Object.keys(raw).map(function (k) { return raw[k]; }) : []);
+		return list.filter(function (a) { return a && (a.id || a.name); }).sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+	}
+
+	function runAction(action) {
+		hide(false);
+		var bus = window._nc_event_bus;
+		if (bus && typeof bus.emit === 'function') { bus.emit('core:navigation:action', action); return; }
+		if (window.console) console.warn('feer app-menu: brak szyny zdarzeń dla', action && action.id);
+	}
 
 	function readApps() {
 		var inp = document.getElementById('initial-state-core-apps');
@@ -55,9 +84,14 @@
 
 	function tile(app, external) {
 		var name = RENAME[app.id] || app.name;
-		var a = el('a', { href: app.href, 'class': 'feer-apps__tile', 'data-name': name.toLowerCase() });
+		var isAction = !!app._action && !(app.href && app.href !== '#');
+		var a = isAction
+			? el('button', { type: 'button', 'class': 'feer-apps__tile', 'data-name': name.toLowerCase() })
+			: el('a', { href: app.href, 'class': 'feer-apps__tile', 'data-name': name.toLowerCase() });
+		if (isAction) a.addEventListener('click', function () { runAction(app._action); });
 		if (app.active) a.setAttribute('aria-current', 'page');
 		var ico = el('span', { 'class': 'feer-apps__icon', 'aria-hidden': 'true' });
+		if (app.color) ico.style.setProperty('--feer-icon-color', app.color);
 		if (app.svg) ico.appendChild(svgIcon(app.svg));
 		else if (app.icon) { ico.classList.add('feer-apps__icon--mask'); ico.style.setProperty('--feer-icon', 'url("' + app.icon + '")'); }
 		a.appendChild(ico);
@@ -99,6 +133,11 @@
 			sec.appendChild(ul);
 			panel.appendChild(sec);
 		}
+		var actions = readActions().map(function (a) {
+			var nm = ACTION_NAMES[a.name] || a.name || a.id;
+			return { id: 'action-' + (a.id || nm), name: nm, href: a.href || '', icon: a.icon || '', svg: a.icon ? null : ICON_PLUS, color: a.color || '', _action: a };
+		});
+		section('Utwórz', actions, false);
 		GROUPS.forEach(function (g) {
 			var items = g.apps.filter(function (id) { return byId[id]; }).map(function (id) { used[id] = 1; return byId[id]; });
 			section(g.name, items, false);

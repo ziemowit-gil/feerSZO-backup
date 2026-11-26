@@ -169,3 +169,12 @@ body:not([data-themes*="dark"]) .fc-timeGridDay-view .fc-timegrid-col.fc-day-tod
 .feer-apps__badge { position: absolute; top: 6px; inset-inline-end: 14px; min-width: 20px; padding: 0 6px; border-radius: 10px;
 	background: #B91C1C; color: #ffffff; font-size: 12px; font-weight: 700; line-height: 20px; }
 @media (prefers-reduced-motion: no-preference) { .feer-apps:not([hidden]) { animation: feerAppsIn .12s ease-out; } @keyframes feerAppsIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } } }
+/* Grupa „Utwórz” (szybkie tworzenie): przyciski wyglądają jak kafle aplikacji */
+.feer-apps button.feer-apps__tile {
+	position: relative; display: flex !important; flex-direction: column; align-items: center; gap: 6px; width: 100%; min-height: 92px;
+	padding: 10px 6px !important; margin: 0 !important; border-radius: 12px !important; border: 2px solid transparent !important;
+	background: transparent !important; color: #111827 !important; text-align: center; font-size: 14px; font-weight: 400; cursor: pointer;
+}
+.feer-apps button.feer-apps__tile:hover { background: #EEF4FF !important; }
+.feer-apps button.feer-apps__tile .feer-apps__icon { background: #F0FDF4; color: #15803D; }
+.feer-apps button.feer-apps__tile .feer-apps__icon--mask::after { background: #15803D; }
