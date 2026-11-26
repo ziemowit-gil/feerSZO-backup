@@ -69,6 +69,13 @@
 		// Nie w każdym oknie — np. edytor wydarzenia ma własne etykiety (dublowały się i nachodziły na pola).
 		document.querySelectorAll('.appointment-config-modal, .booking-details, .appointment-details').forEach(labelize);
 		avatars(document);
+		// Strona rezerwacji (publiczna): bez stopki Nextclouda („Chmura FEER · Załóż własne bezpłatne konto”).
+		if (document.querySelector('.booking, .booking__container, .appointment-booking-confirmation')) {
+			document.querySelectorAll('footer, #footer, .footer, a[href*="nextcloud.com/signup"]').forEach(function (n) {
+				var box = n.tagName === 'A' ? (n.closest('footer, .guest-box, div') || n) : n;
+				if (!box.contains(document.querySelector('.booking'))) box.style.display = 'none';
+			});
+		}
 		document.querySelectorAll('.app-full, .event-popover, .app-calendar .app-navigation, #app-navigation-vue').forEach(translate);
 		// Szybkie okienko wydarzenia: pola z samą podpowiedzią dostają dostępną nazwę (bez zmiany wyglądu).
 		document.querySelectorAll('.event-popover input[placeholder]:not([aria-label]), .event-popover textarea[placeholder]:not([aria-label])').forEach(function (f) {
