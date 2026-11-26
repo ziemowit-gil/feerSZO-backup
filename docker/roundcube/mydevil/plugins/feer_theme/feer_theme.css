@@ -172,12 +172,15 @@ a:hover, .link:hover { color: var(--feer-navy); }
 
 /* Dolne przyciski szyny (Tryb ciemny, O programie, Wyloguj): Elastic daje im własne szare tło
    i stałą szerokość, przez co wystawały poza szynę — ten sam granat i szerokość co szyna */
+/* UWAGA: blok jest position:absolute — 100% liczy się od #layout-menu tylko wtedy, gdy ten jest
+   pozycjonowany; bez tego (2026-11-26) blok rozlał się na całą szerokość strony i zasłonił edytor */
+#layout-menu { position: relative !important; }
 #taskmenu .special-buttons {
   background: var(--feer-navy-dark) !important;
   width: 100% !important;
   max-width: 100% !important;
   left: 0 !important;
-  right: 0 !important;
+  right: auto !important;
   box-sizing: border-box !important;
   border-top: 1px solid rgba(255, 255, 255, .12);
 }
@@ -702,10 +705,12 @@ body.feer-compose .feer-smime-bar {
 body.feer-compose .feer-smime-bar #mimeshield-compose { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem 1.25rem; border: 0; margin: 0; padding: 0; min-width: 0; }
 body.feer-compose .feer-smime-bar #mimeshield-compose legend,
 body.feer-compose .feer-smime-bar .feer-smime-legend { float: none; width: auto; margin: 0 .5rem 0 0; padding: 0; font-size: .85rem; font-weight: 700; color: var(--feer-navy); border: 0; }
-body.feer-compose .feer-smime-bar #mimeshield-compose .form-group { display: flex; align-items: center; gap: .4rem; margin: 0 !important; flex-direction: row-reverse; }
-body.feer-compose .feer-smime-bar #mimeshield-compose .col-form-label,
-body.feer-compose .feer-smime-bar #mimeshield-compose label { flex: none !important; max-width: none !important; padding: 0 !important; font-size: .875rem; }
-body.feer-compose .feer-smime-bar #mimeshield-compose [class*="col-"] { flex: none !important; max-width: none !important; width: auto !important; padding: 0 !important; }
+/* każdy wiersz: napis + przełącznik obok (Bootstrap custom-switch rysuje suwak na ::before etykiety
+   .custom-control-label i potrzebuje lewego wcięcia .custom-control — tych nie ruszamy) */
+body.feer-compose .feer-smime-bar #mimeshield-compose .form-group { display: flex !important; align-items: center; gap: .5rem; margin: 0 !important; flex-wrap: nowrap; }
+body.feer-compose .feer-smime-bar #mimeshield-compose .form-group > .col-form-label { flex: none !important; max-width: none !important; width: auto !important; padding: 0 !important; font-size: .875rem; }
+body.feer-compose .feer-smime-bar #mimeshield-compose .form-group > .form-check { flex: none !important; max-width: none !important; width: auto !important; padding: 0 !important; margin: 0 !important; }
+body.feer-compose .feer-smime-bar #mimeshield-compose .custom-control { min-height: 1.4rem; }
 body.feer-compose .feer-smime-bar #mimeshield-status,
 body.feer-compose .feer-smime-bar .mimeshield-recipients { flex-basis: 100%; font-size: .8125rem; color: var(--feer-muted); }
 body.feer-compose .feer-smime-bar #mimeshield-status:empty,
