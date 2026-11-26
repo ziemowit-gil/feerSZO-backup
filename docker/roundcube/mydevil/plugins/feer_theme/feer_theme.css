@@ -1074,3 +1074,53 @@ a, .link { color: var(--feer-link); }
 }
 .ui-dialog .ui-dialog-buttonpane button { min-height: 44px; }
 .ui-dialog .ui-dialog-titlebar-close { min-width: 44px; min-height: 44px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WCAG 2.2 AA — Ustawienia poczty (2026-11-26)
+   (pola .propform — ramka 4,8:1 i 44 px — są już wyżej, w sekcji Kontaktów)
+   ══════════════════════════════════════════════════════════════════════════ */
+/* Menu ustawień i lista sekcji preferencji */
+#settings-menu li a, #sections-table td, #sections-table td a, #identities-table td, #subscription-table li a,
+#filtersetslist li a, #filterslist td { color: var(--feer-text) !important; }
+#settings-menu li.selected > a, #sections-table tr.selected td, #identities-table tr.selected td,
+#filterslist tr.selected td, #responses-table tr.selected td {
+  background: var(--feer-blue-bg) !important; color: var(--feer-text) !important; font-weight: 700;
+}
+#settings-menu li.selected > a, #sections-table tr.selected > td:first-child, #identities-table tr.selected > td:first-child,
+#filterslist tr.selected > td:first-child { box-shadow: inset 4px 0 0 #1559D6; }
+#settings-menu li a, #sections-table td { min-height: 44px; }
+#identities-table td .email, #identities-table .identity-email { color: var(--feer-muted) !important; }
+
+/* Przełączniki i pola wyboru: ramka ≥ 3:1, włączony stan nie tylko kolorem (znacznik) */
+.custom-switch .custom-control-label:before, .form-check-input, input[type="checkbox"], input[type="radio"] {
+  border-color: #64748B !important;
+}
+.custom-switch .custom-control-input:checked ~ .custom-control-label:before { background-color: #1559D6 !important; border-color: #1559D6 !important; }
+.custom-control-label, .form-check-label { color: var(--feer-text) !important; }
+
+/* Podpowiedzi i opisy pod polami */
+.propform .form-text, .propform .hint, .formcontent .hint, .propform small, .text-muted { color: var(--feer-muted) !important; }
+.propform .form-text a, .formcontent .hint a { color: var(--feer-link) !important; text-decoration: underline; }
+
+/* Nagłówki sekcji w formularzach ustawień */
+.formcontent > fieldset > legend, .propform fieldset > legend, .formcontent h2, .formcontent h3 {
+  color: var(--feer-text) !important; font-weight: 700; font-size: 1.05rem; border-bottom: 1px solid #E5E7EB; padding-bottom: .35rem;
+}
+
+/* Zakładki (np. tożsamość, filtr) */
+.nav-tabs .nav-link, .tabsbar a { color: var(--feer-text) !important; }
+.nav-tabs .nav-link.active, .tabsbar a.selected { color: var(--feer-navy) !important; font-weight: 700; border-bottom: 3px solid #1559D6 !important; }
+
+/* Foldery: subskrypcja (pola wyboru) i liczniki */
+#subscription-table li { min-height: 44px; }
+#subscription-table li .count, #folder-quota { color: var(--feer-muted) !important; }
+
+/* Przyciski formularzy ustawień */
+.formbuttons .btn-primary, .formbuttons .button.mainaction, .formbuttons button.submit {
+  background: #1559D6 !important; border-color: #1559D6 !important; color: #ffffff !important; min-height: 44px; font-weight: 700;
+}
+.formbuttons .btn-secondary, .formbuttons .button:not(.mainaction) { min-height: 44px; border-color: #64748B !important; color: var(--feer-text) !important; }
+
+/* Błędy przy polach (np. filtr, tożsamość) */
+.propform .is-invalid, .propform input.error { border: 2px solid #B91C1C !important; }
+.propform .invalid-feedback, .propform .error-msg { color: #B91C1C !important; font-weight: 600; }
