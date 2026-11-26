@@ -6,6 +6,9 @@ namespace OCA\FeerPoczta\AppInfo;
 
 use OCA\FeerPoczta\Dashboard\SzoWidget;
 use OCA\FeerPoczta\Dashboard\ZespolyWidget;
+use OCA\FeerPoczta\Listener\SharingA11yListener;
+use OCA\Files\Event\LoadAdditionalScriptsEvent;
+use OCA\Files\Event\LoadSidebar;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -21,6 +24,9 @@ class Application extends App implements IBootstrap {
 	public function register(IRegistrationContext $context): void {
 		$context->registerDashboardWidget(SzoWidget::class);
 		$context->registerDashboardWidget(ZespolyWidget::class);
+		// Zakładka „Udostępnianie” w Plikach: prostszy układ + WCAG.
+		$context->registerEventListener(LoadSidebar::class, SharingA11yListener::class);
+		$context->registerEventListener(LoadAdditionalScriptsEvent::class, SharingA11yListener::class);
 	}
 
 	public function boot(IBootContext $context): void {
