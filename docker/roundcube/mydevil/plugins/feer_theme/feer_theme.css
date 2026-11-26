@@ -820,3 +820,29 @@ html.dark-mode body.task-login #login-footer a { color: #93c5fd !important; }
   #layout-menu, #layout-sidebar, #layout-list, .toolbar, .footer { display: none !important; }
   blockquote { background: none !important; border-left: 2px solid #666 !important; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Zwijana lewa szyna (feer_theme.js): html.feer-menu-collapsed = same ikony
+   ══════════════════════════════════════════════════════════════════════════ */
+#taskmenu a.feer-menu-toggle:before { content: "\f100"; } /* « */
+html.feer-menu-collapsed #taskmenu a.feer-menu-toggle:before { content: "\f101"; } /* » */
+html.layout-phone #taskmenu a.feer-menu-toggle { display: none !important; }
+
+html.feer-menu-collapsed:not(.layout-phone) #layout-menu {
+  width: 3.6rem !important;
+  min-width: 3.6rem !important;
+  max-width: 3.6rem !important;
+  flex: 0 0 3.6rem !important;
+}
+html.feer-menu-collapsed:not(.layout-phone) #taskmenu a { margin: 2px 4px; padding-left: 0 !important; padding-right: 0 !important; }
+/* Etykiety ukryte wizualnie, ale dostępne dla czytnika ekranu */
+html.feer-menu-collapsed:not(.layout-phone) #taskmenu a span.inner {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  padding: 0 !important;
+}
+html.feer-menu-collapsed:not(.layout-phone) #layout-menu #logo { max-width: 32px !important; max-height: 32px !important; }

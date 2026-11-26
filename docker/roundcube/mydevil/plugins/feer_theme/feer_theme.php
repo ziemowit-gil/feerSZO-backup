@@ -22,5 +22,7 @@ class feer_theme extends rcube_plugin
         // Bez ?v=…: rdzeń 1.7 sprawdza is_file() na podanej nazwie i z dopiskiem
         // po cichu pomija arkusz. Wersję (?s=mtime) dopisuje sam.
         $this->include_stylesheet('feer_theme.css');
+        // Zwijana lewa szyna (przycisk „Zwiń menu”, stan w localStorage przeglądarki)
+        $this->include_script('feer_theme.js');
     }
 }

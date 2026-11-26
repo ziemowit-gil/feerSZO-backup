@@ -206,6 +206,8 @@ wyłączony (nie ma go w `plugins`; kod został w repo). Cofnięcie: dopisać `f
 `feer_theme` = nakładka CSS na skin Elastic (barwy SZO, karta logowania z logo, tryb ciemny).
 Arkusz dołączany jako `feer_theme.css` BEZ `?v=`: Roundcube 1.7 sprawdza `is_file()` na tej nazwie
 i z dopiskiem po cichu go pomija; wersję `?s=mtime` dopisuje sam.
+Lewa szyna jest zwijana (`feer_theme.js`): przycisk „Zwiń menu” na dole, po zwinięciu same ikony
+z podpowiedziami; stan w `localStorage` przeglądarki (`feer_menu_collapsed`), nie na telefonie.
 
 ## Aktualizacja
 
