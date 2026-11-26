@@ -330,3 +330,14 @@ body:not([data-themes*="dark"]) .contacts-list .list-item__wrapper--active .list
 /* fokus w całej aplikacji Kontakty */
 .contacts-list :focus-visible, .contact-header :focus-visible, .contact-details :focus-visible,
 .addressbook :focus-visible, .group__list :focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px !important; }
+
+/* Strona rezerwacji: terminy jako siatka na całą szerokość karty (bez wąskiej kolumny z paskiem i obcinania prawej ramki) */
+.booking .booking__slot-selection { grid-column: 1 / -1; width: 100%; max-width: none !important; }
+.booking .booking__slots {
+	display: grid !important; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
+	max-height: none !important; overflow: visible !important; padding: 4px !important; width: 100%;
+}
+.booking .booking__slots > *, .booking .booking__slots .appointment-slot, .booking .booking__slots button.appointment-slot {
+	width: 100% !important; min-width: 0 !important; margin: 0 !important; box-sizing: border-box;
+}
+.booking .booking__container { flex-wrap: wrap; }
