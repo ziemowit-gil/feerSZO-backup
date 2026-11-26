@@ -571,3 +571,37 @@ body:not([data-themes*="dark"]) .passwordsapp .row:hover { background: #F5F8FF !
 .feer-sec--weak { color: #B45309; }
 .feer-sec--breached { color: #B91C1C; }
 .feer-sec--unknown { color: #4B5563; }
+
+/* ── Biuro (przegląd dokumentów, aplikacja office) — WCAG 2.2 AA + czytelność ──
+ * Edytor (Office Online) działa w ramce iframe — tam stylów nie zmieniamy.
+ */
+.template-section__heading, .office-overview__files-title, .template-section__header h2, .template-section__header h3 {
+	color: #111827 !important; font-size: 18px !important; font-weight: 700 !important;
+}
+/* szablony: karty z ramką, czytelna nazwa, fokus */
+.template-card {
+	border: 1px solid #CBD5E1 !important; border-radius: 12px !important; background: #ffffff !important; padding: 8px !important;
+}
+.template-card:hover { border-color: #1559D6 !important; background: #F5F8FF !important; }
+.template-card__name { color: #111827 !important; font-size: 14px !important; font-weight: 600; text-align: center; }
+.template-card__preview, .template-card__image { border-radius: 8px; border: 1px solid #E5E7EB; }
+/* karty i lista plików */
+.file-card { border: 1px solid #CBD5E1 !important; border-radius: 12px !important; background: #ffffff !important; }
+.file-card:hover { border-color: #1559D6 !important; }
+.file-card__name, .office-overview__list .list-item-content__name { color: #111827 !important; font-weight: 600; font-size: 15px !important; }
+.file-card__subname, .office-overview__list .list-item-content__subname, .office-overview__list .list-item-details__details { color: #4B5563 !important; opacity: 1 !important; }
+.office-overview__list .list-item { min-height: 56px; }
+.office-overview__favourite-icon { color: #B45309 !important; opacity: 1 !important; }
+/* filtry, wyszukiwanie, przyciski */
+.office-overview__filters button, .office-overview__controls button, .office-overview__more button, .template-section__nav button {
+	min-height: 44px; min-width: 44px;
+}
+.office-overview__filters input, .office-overview__controls input, .office-overview__create-form input {
+	min-height: 44px; border: 1px solid #64748B !important; border-radius: 10px !important; font-size: 15px; color: #111827 !important;
+}
+.office-overview__content .empty-content__description { color: #374151 !important; }
+/* fokus */
+.office-overview__content :focus-visible, .template-section :focus-visible, .template-card:focus-visible, .file-card:focus-visible,
+.template-card :focus-visible, .file-card :focus-visible {
+	outline: 3px solid #1559D6 !important; outline-offset: 2px !important; border-radius: 12px;
+}
