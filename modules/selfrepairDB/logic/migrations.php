@@ -2623,4 +2623,14 @@ return [
         },
     ],
 
+    // Artykuł „Certyfikat FEER do podpisu i szyfrowania poczty” z certyfikatem głównym FEER (polecenie 2026-11-26).
+    '2026-11_it_portal_certyfikat_feer' => [
+        'desc' => 'Portal Usług IT: artykuł „Certyfikat FEER” (S/MIME, certyfikat główny FEER)',
+        'run'  => static function () use ($ROOT): void {
+            require_once $ROOT . '/modules/it_portal/lib/itPortalSzoLinks.php';
+            require_once $ROOT . '/modules/it_portal/lib/itPortalCertFeerSeed.php';
+            itPortalCertFeerApply(ITP_SZO_URL);
+        },
+    ],
+
 ];

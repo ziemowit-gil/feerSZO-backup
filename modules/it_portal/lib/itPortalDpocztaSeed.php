@@ -209,7 +209,7 @@ function itPortalDpocztaMenuGroups(): array {
     $g5 = 'Telefon, programy, kontakty i kalendarz'; $g6 = 'Załączniki i duże pliki';
     return [
         'adres-i-haslo' => [$g1, 8], 'konta-funkcyjne' => [$g1, 15], 'dpoczta-funkcje' => [$g1, 9], 'logowanie-dpoczta' => [$g1, 10], 'dpoczta-co-jest-co' => [$g1, 11], 'dpoczta-a-outlook' => [$g1, 12], 'ustawienia-poczty' => [$g1, 13], 'preferencje' => [$g1, 14],
-        'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23],
+        'zmiana-hasla-poczty' => [$g2, 20], 'blad-authenticate-plain' => [$g2, 21], 'weryfikacja-dwuetapowa' => [$g2, 22], 'szyfrowanie-pgp' => [$g2, 23], 'certyfikat-feer' => [$g2, 24],
         'wiadomosci' => [$g3, 29], 'generator-stopki' => [$g3, 30], 'podpis-w-poczcie' => [$g3, 31], 'autoresponder' => [$g3, 32], 'szablony-odpowiedzi' => [$g3, 33],
         'filtry-i-przekierowanie' => [$g4, 40], 'spam-i-zaufani-nadawcy' => [$g4, 41], 'powiadomienia-o-poczcie' => [$g4, 42], 'gosposia' => [$g4, 43], 'problemy-z-odbiorem' => [$g4, 44],
         'poczta-w-telefonie' => [$g5, 50], 'kontakty' => [$g5, 51], 'kontakty-import-eksport' => [$g5, 52], 'kalendarz' => [$g5, 54], 'folder-wyslane' => [$g5, 53],
