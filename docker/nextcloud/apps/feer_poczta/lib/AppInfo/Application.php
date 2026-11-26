@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\FeerPoczta\AppInfo;
 
+use OCA\FeerPoczta\Dashboard\KomunikatyWidget;
 use OCA\FeerPoczta\Dashboard\MailWidget;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -19,6 +20,7 @@ class Application extends App implements IBootstrap {
 
 	public function register(IRegistrationContext $context): void {
 		$context->registerDashboardWidget(MailWidget::class);
+		$context->registerDashboardWidget(KomunikatyWidget::class);
 	}
 
 	public function boot(IBootContext $context): void {
