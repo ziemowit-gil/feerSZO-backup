@@ -476,3 +476,26 @@ body:not([data-themes*="dark"]) .contacts-list .list-item__wrapper--active .list
 .app-full .vs__placeholder, .app-full .vs__search::placeholder { color: #6B7280 !important; font-weight: 400 !important; }
 /* pola tekstowe opisu i lokalizacji: bez nadmiarowej wysokości */
 .app-full .property-text__input textarea { min-height: 44px; padding: 10px 12px !important; }
+
+/* ── Edytor wydarzenia: wygląd ──
+ * Lewa kolumna: treść (tytuł, czas, miejsce, opis, przypomnienia, załączniki, uczestnicy) z delikatnymi separatorami;
+ * prawa: ustawienia jako jasna karta; duży tytuł; „Zapisz” wyraźny. Ramki pól #64748B (3:1+, wymóg 1.4.11).
+ */
+.app-full .app-full-body { max-width: 1180px; margin-inline: auto; align-items: flex-start; }
+.app-full .app-full-body__right {
+	background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 14px; padding: 18px 18px 8px !important; margin-top: 8px;
+}
+.app-full .app-full-body__right .calendar-picker-header { margin-bottom: 8px; font-weight: 600; }
+.app-full .property-title input, .app-full .property-title__input input, .app-full .property-title .input-field__input {
+	font-size: 24px !important; font-weight: 700 !important; min-height: 56px !important; padding-inline: 14px !important;
+}
+.app-full .property-title-time-picker { padding-bottom: 14px; border-bottom: 1px solid #E5E7EB; margin-bottom: 6px; }
+.app-full .property-text, .app-full .property-alarm-wrapper, .app-full .property-repeat { padding-block: 6px; }
+.app-full .property-alarm-wrapper, .app-full .attachments, .app-full [class*="attachments"] { border-top: 1px solid #E5E7EB; padding-top: 12px; margin-top: 6px; }
+.app-full .app-full__actions button.button-vue--vue-primary, .app-full .app-full__actions .button-vue--primary {
+	min-height: 48px !important; padding-inline: 24px !important; font-size: 16px !important;
+	background: #1559D6 !important; border-color: #1559D6 !important; color: #ffffff !important; border-radius: 12px !important;
+}
+.app-full .app-full__actions button.button-vue--vue-primary:hover { background: #0F4AB8 !important; }
+.app-full .invitees-list__header__title__text { font-size: 17px !important; }
+@media (max-width: 1024px) { .app-full .app-full-body__right { margin-top: 18px; } }
