@@ -9,8 +9,8 @@
  * W sesji grupa skrzynek (feer_acc: [{email, pass}] — pierwsza = główna, hasło z $_SESSION['password']), przenoszona
  * przy przełączeniu, więc ze skrzynki dodatkowej wraca się bez hasła. Zarządzanie listą tylko na skrzynce głównej.
  *
- * Przełącznik na górze widoku Poczty: adres skrzynki w nagłówku nad folderami (span.header-title.username) zamieniony na
- * rozwijaną listę (<details>/<summary>) z „Przełącz” przy każdej skrzynce i „Zarządzaj skrzynkami”.
+ * Okno wyskakujące (natywny <dialog>, Esc/klik w tło zamyka, fokus wraca): ikona „Skrzynki” w lewym pasku (wszystkie widoki)
+ * i przycisk z adresem nad folderami w widoku Poczty. Treść = strona „Moje skrzynki” (lista, Przełącz, Dodaj, Usuń).
  *
  * Przełączenie (plugin.feer_accounts-switch, POST + token): najpierw test IMAP z hasłem docelowej skrzynki (przy błędzie
  * zostajesz w obecnej), potem jak w public_html/index.php: kill_session → login → regenerate_id → set_auth_cookie →
@@ -129,62 +129,45 @@ class feer_accounts extends rcube_plugin
 
     public function render_page(array $args): array
     {
-        if (($args['template'] ?? '') !== 'mail' || empty($_SESSION['user_id'])) {
+        $tpl = (string) ($args['template'] ?? '');
+        if (empty($_SESSION['user_id']) || $tpl === 'login' || !empty($_GET['_framed']) || !empty($_POST['_framed'])) {
             return $args;
         }
         $rc = rcmail::get_instance();
         $q = fn($s) => rcube::Q($s);
         $current = strtolower((string) $rc->get_user_name());
-        $token = html::tag('input', ['type' => 'hidden', 'name' => '_token', 'value' => $rc->get_request_token()]);
-        $items = '';
-        foreach ($this->group() as $i => $a) {
-            if ($a['email'] === $current) {
-                $items .= html::tag('li', ['class' => 'feer-sw-item is-current'],
-                    html::span(['class' => 'feer-sw-email'], $q($a['email']))
-                    . html::span(['class' => 'feer-sw-meta'], $q($this->gettext('current'))));
-                continue;
-            }
-            $items .= html::tag('li', ['class' => 'feer-sw-item'],
-                html::tag('form', ['method' => 'post', 'action' => './?_task=settings&_action=plugin.feer_accounts-switch'],
-                    $token . html::tag('input', ['type' => 'hidden', 'name' => '_email', 'value' => $a['email']])
-                    . html::tag('button', ['type' => 'submit', 'class' => 'feer-sw-btn'],
-                        html::span(['class' => 'feer-sw-email'], $q($a['email']))
-                        . html::span(['class' => 'feer-sw-action'], $q($this->gettext('switch'))))));
-        }
-        if ($items === '') {
-            $items = html::tag('li', ['class' => 'feer-sw-item is-current'], html::span(['class' => 'feer-sw-email'], $q($current)));
-        }
-        $html = html::tag('details', ['class' => 'feer-sw', 'id' => 'feer-sw'],
-            html::tag('summary', ['class' => 'feer-sw-summary', 'aria-label' => $this->gettext('title') . ': ' . $current],
-                html::span(['class' => 'feer-sw-current'], $q($current)))
-            . html::div(['class' => 'feer-sw-panel'],
-                html::tag('ul', ['class' => 'feer-sw-list', 'aria-label' => $this->gettext('title')], $items)
-                . html::a(['href' => './?_task=settings&_action=plugin.feer_accounts', 'class' => 'feer-sw-manage'],
-                    $q(count($this->group()) > 1 ? $this->gettext('title') : $this->gettext('add')))));
-        $rc->output->add_footer(html::div(['id' => 'feer-sw-src', 'hidden' => 'hidden'], $html));
+
+        // Okno wyskakujące (natywny <dialog>): ta sama treść co strona „Moje skrzynki”.
+        $dialog = html::tag('dialog', ['id' => 'feer-acc-dlg', 'class' => 'feer-acc-dlg', 'aria-labelledby' => 'feer-acc-dlg-title'],
+            html::tag('button', ['type' => 'button', 'class' => 'feer-acc-dlg-close', 'aria-label' => $rc->gettext('close')], '×')
+            . $this->page_body());
+        // Przycisk na górze widoku Poczty (zamiast samego adresu nad folderami)
+        $topBtn = html::tag('button', ['type' => 'button', 'class' => 'feer-sw-summary', 'id' => 'feer-sw-open',
+                'aria-haspopup' => 'dialog', 'aria-controls' => 'feer-acc-dlg', 'aria-label' => $this->gettext('title') . ': ' . $current],
+            html::span(['class' => 'feer-sw-current'], $q($current)));
+        $rc->output->add_footer(html::div(['id' => 'feer-sw-src', 'hidden' => 'hidden'], $topBtn) . $dialog);
         $rc->output->add_script(<<<'JS'
 (function () {
-  var src = document.getElementById('feer-sw-src'), sw = src && src.querySelector('#feer-sw');
-  var slot = document.querySelector('#layout-sidebar .header-title.username') || document.querySelector('.header-title.username');
-  if (!sw || !slot) return;
-  slot.textContent = '';
-  slot.classList.add('feer-sw-slot');
-  slot.appendChild(sw);
-  src.remove();
-  // Lista przyklejona do okna pod przyciskiem — nagłówek Elastic może mieć overflow:hidden i przycinać ją.
-  var panel = sw.querySelector('.feer-sw-panel'), summary = sw.querySelector('summary');
-  function place() {
-    if (!sw.open) return;
-    var r = summary.getBoundingClientRect();
-    panel.style.position = 'fixed';
-    panel.style.top = Math.round(r.bottom + 6) + 'px';
-    panel.style.left = Math.max(8, Math.min(Math.round(r.left), window.innerWidth - panel.offsetWidth - 8)) + 'px';
-  }
-  sw.addEventListener('toggle', function () { place(); if (sw.open) { var f = panel.querySelector('button, a'); if (f) f.focus(); } });
-  window.addEventListener('resize', place);
-  window.addEventListener('scroll', place, true);
-  document.addEventListener('click', function (e) { if (sw.open && !sw.contains(e.target)) sw.open = false; });
-  sw.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sw.open) { sw.open = false; sw.querySelector('summary').focus(); } });
+  var dlg = document.getElementById('feer-acc-dlg');
+  if (!dlg || typeof dlg.showModal !== 'function') return;
+  var title = dlg.querySelector('.feer-acc-title');
+  if (title) title.id = 'feer-acc-dlg-title';
+  var opener = null;
+  function open(e, from) { if (e) e.preventDefault(); opener = from || document.activeElement; dlg.showModal();
+    var f = dlg.querySelector('.feer-acc-row:not(.is-current) button, #feer-acc-email, .feer-acc-dlg-close'); if (f) f.focus(); }
+  dlg.querySelector('.feer-acc-dlg-close').addEventListener('click', function () { dlg.close(); });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });           // klik w tło
+  dlg.addEventListener('close', function () { if (opener && document.contains(opener)) opener.focus(); });
+  // Ikona w lewym pasku
+  document.querySelectorAll('#taskmenu a.feer-accounts, a.feer-accounts.button').forEach(function (a) {
+    a.setAttribute('aria-haspopup', 'dialog'); a.setAttribute('aria-controls', 'feer-acc-dlg');
+    a.addEventListener('click', function (e) { open(e, a); });
+  });
+  // Przycisk na górze widoku Poczty
+  var src = document.getElementById('feer-sw-src'), btn = src && src.querySelector('#feer-sw-open');
+  var slot = document.querySelector('#layout-sidebar .header-title.username');
+  if (btn && slot) { slot.textContent = ''; slot.classList.add('feer-sw-slot'); slot.appendChild(btn); btn.addEventListener('click', function (e) { open(e, btn); }); }
+  if (src) src.remove();
 })();
 JS, 'docready');
         return $args;
