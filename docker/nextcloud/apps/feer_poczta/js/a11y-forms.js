@@ -10,7 +10,9 @@
 	var n = 0;
 	function labelize(root) {
 		root.querySelectorAll('input[placeholder]:not([type="hidden"]):not([type="search"]), textarea[placeholder]').forEach(function (inp) {
-			if (inp.closest('.feer-apps, .sharingTab')) return;
+			if (inp.closest('.feer-apps, .sharingTab, .mx-datepicker, .native-datetime-picker, .vs__dropdown-toggle')) return;
+			var prev = inp.previousElementSibling;
+			if (prev && (prev.tagName === 'LABEL' || prev.classList.contains('feer-field-label'))) { inp.setAttribute('data-feer-label', '1'); return; }
 			if (inp.hasAttribute('data-feer-label')) return;
 			if (inp.id && root.querySelector('label[for="' + CSS.escape(inp.id) + '"]')) { inp.setAttribute('data-feer-label', '1'); return; }
 			if (inp.closest('label') || inp.getAttribute('aria-labelledby')) { inp.setAttribute('data-feer-label', '1'); return; }
@@ -42,7 +44,9 @@
 	var queued = false;
 	function run() {
 		queued = false;
-		document.querySelectorAll('.appointment-config-modal, .booking-details, .appointment-details, .modal-container').forEach(labelize);
+		// Tylko formularze, w których pola NIE mają etykiet (sprawdzone): harmonogram spotkań i dane rezerwującego.
+		// Nie w każdym oknie — np. edytor wydarzenia ma własne etykiety (dublowały się i nachodziły na pola).
+		document.querySelectorAll('.appointment-config-modal, .booking-details, .appointment-details').forEach(labelize);
 		avatars(document);
 	}
 	function schedule() { if (!queued) { queued = true; window.requestAnimationFrame(run); } }
