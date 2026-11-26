@@ -167,8 +167,15 @@ a:hover, .link:hover { color: var(--feer-navy); }
 #taskmenu a.selected:hover {
   background: var(--feer-blue) !important;
   color: #fff !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+  box-shadow: none !important;
 }
+
+/* Główne menu (szyna) płaskie, bez cieni i zaokrągleń: #taskmenu ma klasę „menu”, więc łapała go
+   ogólna reguła menu podręcznych (cień + promień 14 px) */
+#layout-menu, #taskmenu, #taskmenu a, #taskmenu .inner, #taskmenu .special-buttons, #taskmenu .action-buttons {
+  box-shadow: none !important;
+}
+#layout-menu, #taskmenu { border-radius: 0 !important; }
 
 /* Dolne przyciski szyny (Tryb ciemny, O programie, Wyloguj): Elastic daje im własne szare tło
    i stałą szerokość, przez co wystawały poza szynę — ten sam granat i szerokość co szyna */
