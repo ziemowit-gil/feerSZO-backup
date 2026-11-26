@@ -29,6 +29,8 @@
         document.getElementById('tm-team-id').value = team ? team.id : 0;
         document.getElementById('tm-team-modal-title').textContent = team ? 'Edytuj zespół' : 'Nowy zespół';
         document.getElementById('tm-name').value  = team ? team.name : '';
+        const unitSel = document.getElementById('tm-unit');
+        if (unitSel) unitSel.value = team && team.unit_id ? String(team.unit_id) : '0';
         document.getElementById('tm-desc').value  = team ? team.description : '';
         document.getElementById('tm-color').value = team ? team.color : '#2563eb';
         document.getElementById('tm-icon').value  = team ? (team.icon || '').replace(/^bi-/, '') : 'people-fill';
@@ -53,6 +55,7 @@
             description: document.getElementById('tm-desc').value,
             color:       document.getElementById('tm-color').value,
             icon:        document.getElementById('tm-icon').value,
+            unit_id:     parseInt((document.getElementById('tm-unit') || {}).value || '0', 10) || 0,
         }).then(r => {
             btn.disabled = false;
             if (r.ok) { reload(); }

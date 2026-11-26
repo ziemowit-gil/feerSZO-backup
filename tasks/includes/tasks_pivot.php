@@ -85,7 +85,7 @@ $_tsk_set_active = _tsk_active('/tasks/settings') || _tsk_active('/tasks/notific
         <?php if ($_is_admin): ?>
         <li><hr class="dropdown-divider"></li>
         <li><h6 class="dropdown-header">Administracja</h6></li>
-        <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/teams.php"><i class="bi bi-people" aria-hidden="true"></i>Zespoły</a></li>
+        <li><a class="dropdown-item" href="<?= APP_URL ?>/org/teams.php"><i class="bi bi-people" aria-hidden="true"></i>Zespoły</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/templates.php"><i class="bi bi-list-check" aria-hidden="true"></i>Szablony zadań</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/settings/areas.php"><i class="bi bi-layers" aria-hidden="true"></i>Obszary zadań</a></li>
         <li><a class="dropdown-item" href="<?= APP_URL ?>/tasks/router.php?_route=/uprawnienia-plikow"><i class="bi bi-shield-lock" aria-hidden="true"></i>Uprawnienia do plików</a></li>

@@ -481,6 +481,8 @@ function task_teams_migrate(): void {
         added_at     DATETIME    NOT NULL DEFAULT (datetime('now','localtime')),
         PRIMARY KEY (workspace_id, team_id)
     )");
+    // Zespół w Strukturze Organizacyjnej (org/teams.php): opcjonalna jednostka.
+    try { $pdo->exec("ALTER TABLE task_teams ADD COLUMN unit_id INTEGER NULL"); } catch (\Throwable $e) {}
 }
 
 /** Najwyższa z dwóch ról wg hierarchii admin>editor>member>viewer (null-owe pomijane). */

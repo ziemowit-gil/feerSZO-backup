@@ -43,16 +43,17 @@ include dirname(__DIR__) . '/includes/header.php';
     <h4 class="mb-0 fw-bold"><i class="bi bi-diagram-3 text-primary me-2"></i>Struktura Organizacyjna</h4>
     <div class="text-muted" style="font-size:.78rem;margin-top:.1rem">Hierarchia jednostek, stanowiska i przypisania osobowe</div>
   </div>
-  <?php if(is_admin()): ?>
   <div class="d-flex gap-2 flex-wrap">
+    <a href="<?= APP_URL ?>/org/teams.php" class="btn btn-outline-primary btn-sm"><i class="bi bi-people-fill me-1"></i>Zespoły</a>
+  <?php if(is_admin()): ?>
     <a href="<?= APP_URL ?>/org/units/add.php?level=jednostka" class="btn btn-primary btn-sm"><i class="bi bi-building me-1"></i>Nowa jednostka</a>
     <a href="<?= APP_URL ?>/org/units/add.php?level=dzial" class="btn btn-outline-primary btn-sm"><i class="bi bi-diagram-3 me-1"></i>Nowy dział</a>
     <a href="<?= APP_URL ?>/org/units/add.php?kind=external" class="btn btn-outline-info btn-sm"><i class="bi bi-buildings me-1"></i>Jednostka zewnętrzna</a>
     <a href="<?= APP_URL ?>/org/positions/index.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-briefcase me-1"></i>Stanowiska</a>
     <a href="<?= APP_URL ?>/org/fields.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-layout-text-sidebar-reverse me-1"></i>Pola</a>
     <a href="<?= APP_URL ?>/org/history.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-clock-history me-1"></i>Historia</a>
-  </div>
   <?php endif; ?>
+  </div>
 </div>
 
 <?= flash_html() ?>

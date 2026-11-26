@@ -9,7 +9,7 @@
   Zespół przypisany tutaj daje dostęp do obszaru WSZYSTKIM swoim członkom,
   dodatkowo obok osób dodanych pojedynczo w zakładce „Członkowie".
   Zarządzanie samymi zespołami (tworzenie, członkowie) — w
-  <a href="<?= APP_URL ?>/tasks/settings/teams.php">ustawieniach Zespołów</a>.
+  <a href="<?= APP_URL ?>/org/teams.php">ustawieniach Zespołów</a>.
 </p>
 <div class="card border-0 shadow-sm mb-3">
   <div class="table-responsive">
@@ -82,5 +82,5 @@
   </div>
 </div>
 <?php else: ?>
-<p class="text-muted small">Wszystkie aktywne zespoły są już przypisane do tego obszaru, albo nie istnieje żaden zespół — <a href="<?= APP_URL ?>/tasks/settings/teams.php">utwórz zespół</a>.</p>
+<p class="text-muted small">Wszystkie aktywne zespoły są już przypisane do tego obszaru, albo nie istnieje żaden zespół — <a href="<?= APP_URL ?>/org/teams.php">utwórz zespół</a>.</p>
 <?php endif; ?>

@@ -175,6 +175,32 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <?php endforeach; ?>
     </div>
     <?php endif; ?>
+
+    <!-- Zespoły jednostki (task_teams.unit_id, org/teams.php) -->
+    <?php
+    $unit_teams = [];
+    try {
+        require_once dirname(dirname(__DIR__)) . '/includes/tasks.php';
+        task_teams_migrate();
+        $unit_teams = db_all(
+            "SELECT tt.id, tt.name, tt.color, tt.icon,
+                    (SELECT COUNT(*) FROM task_team_members WHERE team_id = tt.id) AS member_count
+             FROM task_teams tt WHERE tt.unit_id = ? AND tt.is_active = 1 ORDER BY tt.name", [$id]);
+    } catch (\Throwable $e) {}
+    if ($unit_teams): ?>
+    <h6 class="fw-bold mb-2 mt-4"><i class="bi bi-people-fill me-1 text-primary"></i>Zespoły (<?= count($unit_teams) ?>)</h6>
+    <div class="row g-2">
+      <?php foreach ($unit_teams as $t): ?>
+      <div class="col-md-6">
+        <a href="<?= APP_URL ?>/org/teams.php#team-<?= (int)$t['id'] ?>" class="d-flex align-items-center gap-2 p-2 rounded border text-decoration-none text-dark">
+          <i class="bi <?= h($t['icon']) ?>" style="color:<?= h($t['color']) ?>" aria-hidden="true"></i>
+          <span class="flex-grow-1 fw-semibold" style="font-size:.84rem"><?= h($t['name']) ?></span>
+          <span class="badge bg-light text-secondary" style="font-size:.65rem"><?= (int)$t['member_count'] ?> os.</span>
+        </a>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
   </div>
 
   <!-- Prawa: metadane -->

@@ -29,6 +29,14 @@ if (in_array($action, ['create', 'update', 'toggle', 'delete', 'add_member', 're
     if (!is_admin()) task_api_error('Brak uprawnień administratora.', 403);
 }
 
+/** Jednostka zespołu (task_teams.unit_id) — istniejąca w org_units albo NULL. */
+function team_unit_id(array $body): ?int {
+    $id = (int)($body['unit_id'] ?? 0);
+    if ($id <= 0) return null;
+    try { return db_one("SELECT id FROM org_units WHERE id=?", [$id]) ? $id : null; }
+    catch (\Throwable $e) { return null; }
+}
+
 if ($action === 'create') {
     $name = trim($body['name'] ?? '');
     if ($name === '') task_api_error('Nazwa zespołu jest wymagana.');
@@ -39,6 +47,7 @@ if ($action === 'create') {
         'description' => trim($body['description'] ?? ''),
         'color'       => $color,
         'icon'        => 'bi-' . ltrim($icon, 'bi-'),
+        'unit_id'     => team_unit_id($body),
         'is_active'   => 1,
         'created_by'  => $uid,
         'created_at'  => date('Y-m-d H:i:s'),
@@ -55,8 +64,8 @@ if ($action === 'update') {
     $color = preg_match('/^#[0-9a-fA-F]{6}$/', $body['color'] ?? '') ? $body['color'] : '#2563eb';
     $icon  = preg_replace('/[^a-z0-9\-]/', '', $body['icon'] ?? 'people-fill') ?: 'people-fill';
     db()->prepare(
-        "UPDATE task_teams SET name=?, description=?, color=?, icon=?, updated_at=datetime('now','localtime') WHERE id=?"
-    )->execute([$name, trim($body['description'] ?? ''), $color, 'bi-' . ltrim($icon, 'bi-'), $team_id]);
+        "UPDATE task_teams SET name=?, description=?, color=?, icon=?, unit_id=?, updated_at=datetime('now','localtime') WHERE id=?"
+    )->execute([$name, trim($body['description'] ?? ''), $color, 'bi-' . ltrim($icon, 'bi-'), team_unit_id($body), $team_id]);
     task_api_ok(['id' => $team_id]);
 }
 
