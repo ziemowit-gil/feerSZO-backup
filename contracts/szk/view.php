@@ -253,6 +253,7 @@ $_letters = get_contract_letters($TYPE, $id);
 <?php include dirname(dirname(__DIR__)) . '/includes/_contract_ezd_panel.php'; ?>
 
 <?php include dirname(dirname(__DIR__)) . '/includes/_contract_teams_panel.php'; ?>
+<?php include dirname(dirname(__DIR__)) . '/includes/_contract_links_panel.php'; ?>
 
 <?php $audit_log = get_audit_log($TYPE, $id); if ($audit_log): ?>
 <div class="card shadow-sm mb-3 no-print"><div class="card-header fw-semibold"><i class="bi bi-journal-text"></i> Historia zdarzeń</div>

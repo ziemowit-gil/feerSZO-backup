@@ -58,6 +58,7 @@ include dirname(__DIR__) . '/includes/header.php';
 <?php $ORG_NAV_ACTIVE = 'schemat'; include __DIR__ . '/includes/org_nav.php'; ?>
 
 <?= flash_html() ?>
+<?php include dirname(__DIR__) . '/includes/_contract_links_banner.php'; ?>
 
 <!-- Statystyki -->
 <div class="row g-3 mb-4">

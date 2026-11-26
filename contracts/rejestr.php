@@ -73,6 +73,7 @@ include dirname(__DIR__) . '/includes/header.php';
   </a>
 </div>
 
+<?php include dirname(__DIR__) . '/includes/_contract_links_banner.php'; ?>
 <?= flash_html() ?>
 <?php if ($dups): $dupN = array_sum(array_map(fn($g) => count($g) - 1, $dups)); ?>
 <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2" role="status">

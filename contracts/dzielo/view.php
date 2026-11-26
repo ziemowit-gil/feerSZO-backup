@@ -509,6 +509,7 @@ require_once dirname(dirname(__DIR__)) . '/modules/contractIt/logic/ContractIt.p
   <?php include dirname(dirname(__DIR__)) . '/includes/_contract_ezd_panel.php'; ?>
 
   <?php include dirname(dirname(__DIR__)) . '/includes/_contract_teams_panel.php'; ?>
+  <?php include dirname(dirname(__DIR__)) . '/includes/_contract_links_panel.php'; ?>
 
   <?php include dirname(dirname(__DIR__)) . '/includes/_contract_certs_ezd.php'; ?>
 
