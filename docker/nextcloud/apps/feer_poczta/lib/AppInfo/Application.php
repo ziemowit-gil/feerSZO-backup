@@ -37,5 +37,7 @@ class Application extends App implements IBootstrap {
 		// Białe tła i okienka (css/feer-ui.css) na każdej stronie — także w aplikacjach, które nie wywołują
 		// BeforeTemplateRenderedEvent przed zebraniem stylów (np. Kalendarz).
 		\OCP\Util::addStyle(self::APP_ID, 'feer-ui');
+		// Selektor aplikacji FEER zamiast menu „kafelki” w nagłówku (js/app-menu.js).
+		\OCP\Util::addScript(self::APP_ID, 'app-menu');
 	}
 }

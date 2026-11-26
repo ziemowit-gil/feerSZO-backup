@@ -370,6 +370,94 @@
 		});
 	}
 
+	// ── Wybór sposobu udostępnienia jako okno (ikona udostępniania w wierszu pliku) ───────────────────
+	var chooser = null, chooserFrom = null, bypass = false;
+	function rowName(btn) {
+		var row = btn.closest('tr, [data-cy-files-list-row]');
+		var n = row && (row.getAttribute('data-cy-files-list-row-name') || (row.querySelector('.files-list__row-name-text, .files-list__row-name') || {}).textContent || '');
+		return (n || '').trim();
+	}
+	function openSidebarThen(btn, fn) {
+		bypass = true;
+		btn.click();
+		bypass = false;
+		var tries = 0;
+		(function wait() {
+			var tab = document.querySelector('.sharingTab');
+			var parts = tab && tab.querySelector('.sharingTab__content') && markSections(tab.querySelector('.sharingTab__content'));
+			if (parts && (parts.internal || parts.external)) { fn(tab, parts); return; }
+			if (++tries < 60) window.setTimeout(wait, 100);
+		})();
+	}
+	function closeChooser(back) {
+		if (!chooser || chooser.hidden) return;
+		chooser.hidden = true;
+		if (back && chooserFrom && document.contains(chooserFrom)) chooserFrom.focus();
+	}
+	function openChooser(btn) {
+		chooserFrom = btn;
+		if (!chooser) {
+			chooser = el('div', { 'class': 'feer-chooser-wrap', hidden: '' });
+			var box = el('div', { 'class': 'feer-chooser', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'feer-chooser-title', 'aria-describedby': 'feer-chooser-file' });
+			box.appendChild(el('h2', { id: 'feer-chooser-title', 'class': 'feer-chooser__title' }, 'Jak chcesz udostępnić?'));
+			box.appendChild(el('p', { id: 'feer-chooser-file', 'class': 'feer-chooser__file' }));
+			var opts = [
+				['in', ICON_PERSON, TEXT.btnInternal, 'Osoba zobaczy plik u siebie w chmurze FEER.'],
+				['ex', ICON_GLOBE, TEXT.btnExternal, 'Zaproszenie na adres e-mail osoby spoza FEER.'],
+				['link', ICON_LINK, TEXT.btnCopyLink, 'Link do pliku trafi do schowka — otworzy go każdy, kto go dostanie.'],
+			];
+			opts.forEach(function (o) {
+				var b = el('button', { type: 'button', 'class': 'feer-chooser__opt', 'data-opt': o[0] });
+				b.appendChild(svg(o[1]));
+				var t = el('span', { 'class': 'feer-chooser__opt-text' });
+				t.appendChild(el('strong', {}, o[2])); t.appendChild(el('span', {}, o[3]));
+				b.appendChild(t);
+				box.appendChild(b);
+			});
+			var cancel = el('button', { type: 'button', 'class': 'feer-chooser__cancel' }, 'Anuluj');
+			box.appendChild(cancel);
+			chooser.appendChild(box);
+			document.body.appendChild(chooser);
+			chooser.addEventListener('click', function (e) {
+				if (e.target === chooser || e.target === cancel) { closeChooser(true); return; }
+				var opt = e.target.closest('.feer-chooser__opt');
+				if (!opt) return;
+				var from = chooserFrom; var kind = opt.getAttribute('data-opt');
+				closeChooser(false);
+				openSidebarThen(from, function (tab, parts) {
+					var content = tab.querySelector('.sharingTab__content');
+					if (kind === 'in') { focusInput(parts.internal); announce(content, TEXT.liveInternal); }
+					else if (kind === 'ex') { focusInput(parts.external); announce(content, TEXT.liveExternal); }
+					else { var lb = content.querySelector('.feer-share-btn--link'); shareAndCopy(lb || opt); }
+				});
+			});
+			box.addEventListener('keydown', function (e) {
+				if (e.key === 'Escape') { e.preventDefault(); closeChooser(true); return; }
+				if (e.key === 'Tab') {
+					var f = focusables(box); var first = f[0], last = f[f.length - 1];
+					if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+					else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+				}
+				if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+					var o2 = Array.prototype.slice.call(box.querySelectorAll('.feer-chooser__opt'));
+					var i = o2.indexOf(document.activeElement);
+					if (i >= 0) { e.preventDefault(); o2[(i + (e.key === 'ArrowDown' ? 1 : o2.length - 1)) % o2.length].focus(); }
+				}
+			});
+		}
+		var name = rowName(btn);
+		chooser.querySelector('.feer-chooser__file').textContent = name ? ('Plik: ' + name) : '';
+		chooser.hidden = false;
+		window.requestAnimationFrame(function () { chooser.querySelector('.feer-chooser__opt').focus(); });
+	}
+	document.addEventListener('click', function (e) {
+		if (bypass) return;
+		var btn = e.target.closest && e.target.closest('[data-cy-files-list-row-action="sharing-status"], .files-list__row-action-sharing-status');
+		if (!btn) return;
+		e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+		openChooser(btn);
+	}, true);
+
 	/**
 	 * Karty panelu bocznego: „Udostępnianie” jest domyślne, więc jego karta znika, gdy jest otwarte (wraca jako ikona,
 	 * gdy otworzysz inną kartę). Pozostałe karty (np. „Aktywność”) jako małe ikony; nazwa zostaje dla czytników ekranu.
