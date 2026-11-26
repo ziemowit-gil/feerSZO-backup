@@ -284,3 +284,49 @@ body:not([data-themes*="dark"]) .files-list .checkbox-radio-switch__icon svg { c
 /* sekcje oddzielone */
 .app-full .app-full-body__left > * + *, .app-full .app-full-body__right > * + * { margin-top: 10px; }
 .app-full .invitees-list { border-top: 1px solid #E5E7EB; padding-top: 14px; margin-top: 18px; }
+
+/* ── Kontakty (WCAG 2.2 AA + czytelność) ── */
+/* lista kontaktów */
+.contacts-list .list-item, .contacts-list .list-item__wrapper .list-item { min-height: 56px; }
+.contacts-list .list-item-content__name { font-size: 15px !important; font-weight: 600; color: #111827 !important; }
+.contacts-list .list-item-content__subname, .contacts-list .list-item-details__details { color: #4B5563 !important; opacity: 1 !important; font-size: 14px; }
+body:not([data-themes*="dark"]) .contacts-list .list-item__wrapper--active .list-item,
+body:not([data-themes*="dark"]) .contacts-list .list-item--active {
+	background-color: #EEF4FF !important; box-shadow: inset 4px 0 0 #1559D6; color: #111827 !important;
+}
+body:not([data-themes*="dark"]) .contacts-list .list-item__wrapper--active .list-item-content__name,
+body:not([data-themes*="dark"]) .contacts-list .list-item__wrapper--active .list-item-content__subname { color: #111827 !important; }
+.contacts-list .list-item:hover { background-color: #F5F8FF; }
+.contacts-list__header { font-weight: 700; color: #111827; }
+
+/* nagłówek kontaktu */
+.contact-header .contact-header__infos-title, .contact-header .contact-header__infos-title input {
+	font-size: 24px !important; font-weight: 700; color: #111827 !important;
+}
+.contact-header .contact-header__infos-subtitle, .contact-header .contact-header__infos-subtitle input { font-size: 15px; color: #374151 !important; }
+.contact-header input { min-height: 40px; }
+.contact-header__quick-actions button, .contact-header__infos__quick-actions button, .contact-header__actions button {
+	min-width: 44px !important; min-height: 44px !important; border: 1px solid #64748B !important; border-radius: 10px !important;
+}
+
+/* pola danych kontaktu */
+.contact-details .property { margin-block: 6px; }
+.contact-details .property__label, .contact-details .property__label * { color: #374151 !important; font-weight: 600; font-size: 14px; opacity: 1 !important; }
+.contact-details .property--title, .contact-details .property--title * { font-size: 17px !important; font-weight: 700; color: #111827 !important; }
+.contact-details .property__value input, .contact-details .property__value textarea,
+.contact-details .property__value .vs__dropdown-toggle, .contact-details .property__label .vs__dropdown-toggle {
+	min-height: 44px; font-size: 15px; color: #111827 !important; border: 1px solid #64748B !important; border-radius: 10px !important;
+}
+.contact-details input::placeholder, .contact-details textarea::placeholder { color: #6B7280 !important; opacity: 1; }
+.contact-details .property__actions button, .contact-details .property__ext button { min-width: 44px; min-height: 44px; opacity: 1 !important; }
+.contact-details .property__value--note textarea { min-height: 96px; }
+/* tylko do odczytu: tekst zamiast szarego */
+.contact-details-wrapper-read-only .property__value, .contact-details-wrapper-read-only .property__value * { color: #111827 !important; opacity: 1 !important; }
+
+/* książki adresowe i grupy w panelu */
+.addressbook__name { color: #111827; font-weight: 600; }
+.addressbook__description, .addressbook__count, .addressbook-sharee__identifier { color: #4B5563 !important; opacity: 1 !important; }
+
+/* fokus w całej aplikacji Kontakty */
+.contacts-list :focus-visible, .contact-header :focus-visible, .contact-details :focus-visible,
+.addressbook :focus-visible, .group__list :focus-visible { outline: 3px solid #1559D6 !important; outline-offset: 2px !important; }
