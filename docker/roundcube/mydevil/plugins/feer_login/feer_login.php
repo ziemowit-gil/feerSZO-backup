@@ -70,6 +70,14 @@ class feer_login extends rcube_plugin
             . '</div>';
         $html = preg_replace('#<table>#', $intro . '<table>', $html, 1);
 
+        // „Odzyskaj dostęp” pod przyciskiem: hasła zmienia się WYŁĄCZNIE w SZO (/nowehaslo)
+        $rec = (string) rcmail::get_instance()->config->get('feer_login_recovery_url', '');
+        if ($rec !== '') {
+            $link = '<p class="feer-login-recovery">Nie pamiętasz hasła albo masz zablokowane konto? '
+                . '<a href="' . htmlspecialchars($rec, ENT_QUOTES) . '" target="_blank" rel="noopener">Odzyskaj dostęp</a></p>';
+            $html = preg_replace('#(<p class="formbuttons">.*?</p>)#s', '$1' . $link, $html, 1);
+        }
+
         // persistent_login dokłada wiersz z ukrytym <label for="rcmloginuser">Username</label>,
         // przez co pole e-mail ma dwie etykiety (czytnik: „Adres e-mail Username”). Usuwamy go
         // po jej skrypcie (ten sam zdarzenie init, więc setTimeout).

@@ -30,6 +30,8 @@ class feer_cloud_save extends rcube_plugin
         $this->register_action('plugin.feer_cloud_connect', [$this, 'action_connect']);
         $this->register_action('plugin.feer_cloud_poll', [$this, 'action_poll']);
         $this->register_action('plugin.feer_cloud_prompt', [$this, 'action_prompt']);
+        $this->register_action('plugin.feer_cloud_list', [$this, 'action_list']);
+        $this->register_action('plugin.feer_cloud_attach', [$this, 'action_attach']);
 
         if ($rc->output->type !== 'html') {
             return;
@@ -42,7 +44,23 @@ class feer_cloud_save extends rcube_plugin
             $_SESSION['feer_cloud_prompted'] = 1;
             if ($this->should_prompt()) {
                 $rc->output->set_env('feer_cloud_prompt', true);
+            } elseif ($this->should_prompt_2fa()) {
+                // najwyżej jedna zachęta na sesję: najpierw chmura, potem 2FA
+                $rc->output->set_env('feer_2fa_prompt', true);
             }
+        }
+
+        // Okno pisania: „Z chmury” (dołącz plik z chmury FEER)
+        if ($rc->action === 'compose') {
+            $this->add_button([
+                'command'  => 'plugin.feer_cloud_attach',
+                'type'     => 'link',
+                'label'    => 'feer_cloud_save.fromcloud',
+                'title'    => 'feer_cloud_save.fromcloudtitle',
+                'class'    => 'button feer-cloud-attach disabled',
+                'classact' => 'button feer-cloud-attach',
+                'innerclass' => 'inner',
+            ], 'toolbar');
         }
 
         if (in_array($rc->action, ['show', 'preview'], true)) {
@@ -75,7 +93,7 @@ class feer_cloud_save extends rcube_plugin
     private function should_prompt(): bool
     {
         $rc = rcmail::get_instance();
-        if ($this->connected() || (string) $rc->config->get('nextcloud_attachment_server', '') === '') {
+        if ($this->connected() || (string) $rc->config->get('feer_cloud_server', '') === '') {
             return false;
         }
         $hosts = (array) $rc->config->get('feer_cloud_prompt_hosts', []);
@@ -86,12 +104,33 @@ class feer_cloud_save extends rcube_plugin
         return $p !== 'never' && (int) $p < time();
     }
 
-    /** Odpowiedź z okienka zachęty: later (7 dni) albo never. */
+    /**
+     * Zachęta do 2FA (twofactor_gauthenticator): 2FA dobrowolne, ale zachęcamy — bez opcji
+     * „nie pokazuj więcej”, tylko „przypomnij za tydzień” (preferencja feer_2fa_prompt).
+     * Włączone 2FA = niepusta preferencja twofactor_gauthenticator (przy wyłączeniu wtyczka ją czyści).
+     */
+    private function should_prompt_2fa(): bool
+    {
+        $rc = rcmail::get_instance();
+        if (!in_array('twofactor_gauthenticator', (array) $rc->config->get('plugins', []), true)) {
+            return false;
+        }
+        $prefs = $rc->user->get_prefs();
+        if (!empty($prefs['twofactor_gauthenticator'])) {
+            return false;
+        }
+        return (int) ($prefs['feer_2fa_prompt'] ?? 0) < time();
+    }
+
+    /** Odpowiedź z okienek zachęty: chmura later (7 dni) / never, 2FA later (7 dni). */
     public function action_prompt(): void
     {
         $rc  = rcmail::get_instance();
         $ans = rcube_utils::get_input_string('_answer', rcube_utils::INPUT_POST);
-        if ($ans === 'never' || $ans === 'later') {
+        $what = rcube_utils::get_input_string('_what', rcube_utils::INPUT_POST);
+        if ($what === '2fa') {
+            $rc->user->save_prefs(['feer_2fa_prompt' => (string) (time() + 7 * 86400)]);
+        } elseif ($ans === 'never' || $ans === 'later') {
             $rc->user->save_prefs(['feer_cloud_prompt' => $ans === 'never' ? 'never' : (string) (time() + 7 * 86400)]);
         }
         $rc->output->send();
@@ -101,7 +140,7 @@ class feer_cloud_save extends rcube_plugin
     public function action_connect(): void
     {
         $rc  = rcmail::get_instance();
-        $srv = rtrim((string) $rc->config->get('nextcloud_attachment_server', ''), '/');
+        $srv = rtrim((string) $rc->config->get('feer_cloud_server', ''), '/');
         $res = $this->http('POST', $srv . '/index.php/login/v2', '');
         $j   = json_decode((string) $res['body'], true);
         if ($res['code'] !== 200 || empty($j['login']) || empty($j['poll']['token'])) {
@@ -124,7 +163,7 @@ class feer_cloud_save extends rcube_plugin
     {
         $rc   = rcmail::get_instance();
         $flow = $_SESSION['feer_cloud_flow'] ?? null;
-        $srv  = rtrim((string) $rc->config->get('nextcloud_attachment_server', ''), '/');
+        $srv  = rtrim((string) $rc->config->get('feer_cloud_server', ''), '/');
 
         if (!$flow || $flow['until'] < time() || strpos($flow['endpoint'], $srv . '/') !== 0) {
             unset($_SESSION['feer_cloud_flow']);
@@ -144,12 +183,168 @@ class feer_cloud_save extends rcube_plugin
                 ];
                 $rc->user->save_prefs($prefs);
                 unset($_SESSION['feer_cloud_flow'], $_SESSION['plugins']['nextcloud_attachments']);
+                // kontakty z chmury: carddav ma już w tym żądaniu config sprzed połączenia,
+                // więc presety odświeża feer_cloud_dav w NASTĘPNYM żądaniu (flaga w sesji)
+                $_SESSION['feer_carddav_resync'] = 1;
                 $rc->output->command('plugin.feer_cloud_flow_done', ['status' => 'ok']);
                 $rc->output->send();
                 return;
             }
         }
         $rc->output->command('plugin.feer_cloud_flow_done', ['status' => $res['code'] === 404 ? 'wait' : 'error']);
+        $rc->output->send();
+    }
+
+    /** Dane logowania do chmury albo null (brak połączenia). @return array{0:string,1:string,2:string}|null */
+    private function cloud(): ?array
+    {
+        $rc    = rcmail::get_instance();
+        $login = (array) ($rc->user->get_prefs()['nextcloud_login'] ?? []);
+        $srv   = rtrim((string) $rc->config->get('feer_cloud_server', ''), '/');
+        if ($srv === '' || empty($login['loginName']) || empty($login['appPassword'])) {
+            return null;
+        }
+        $dav = $srv . '/remote.php/dav/files/' . rawurlencode((string) $login['loginName']) . '/';
+        return [$dav, (string) $login['loginName'], (string) $login['appPassword']];
+    }
+
+    /** Ścieżka względna w chmurze z żądania: bez „..”, bez ukośników na brzegach. */
+    private function input_path(string $name): string
+    {
+        $p = trim((string) rcube_utils::get_input_string($name, rcube_utils::INPUT_POST), '/');
+        $parts = array_filter(explode('/', $p), fn($x) => $x !== '' && $x !== '.' && $x !== '..');
+        return implode('/', $parts);
+    }
+
+    /** Lista folderu w chmurze (PROPFIND Depth 1) dla okna „Z chmury”. */
+    public function action_list(): void
+    {
+        $rc = rcmail::get_instance();
+        $c  = $this->cloud();
+        if (!$c) {
+            $rc->output->command('plugin.feer_cloud_save_connect');
+            $rc->output->send();
+            return;
+        }
+        [$dav, $user, $pass] = $c;
+        $path = $this->input_path('_path');
+        $body = '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/>'
+            . '<d:getcontentlength/><d:getlastmodified/><d:getcontenttype/></d:prop></d:propfind>';
+
+        $ch = curl_init($dav . $this->enc_path($path) . ($path === '' ? '' : '/'));
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST  => 'PROPFIND',
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_USERPWD        => $user . ':' . $pass,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_HTTPHEADER     => ['Depth: 1', 'Content-Type: application/xml'],
+        ]);
+        $xml  = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        if ($code !== 207 || !is_string($xml)) {
+            $rc->output->command('plugin.feer_cloud_list', ['error' => $code === 401 ? 'auth' : 'error', 'path' => $path]);
+            $rc->output->send();
+            return;
+        }
+
+        $items = [];
+        $doc = new DOMDocument();
+        if (@$doc->loadXML($xml, LIBXML_NONET)) {
+            $xp = new DOMXPath($doc);
+            $xp->registerNamespace('d', 'DAV:');
+            $base = rtrim(parse_url($dav . $this->enc_path($path), PHP_URL_PATH), '/');
+            foreach ($xp->query('//d:response') as $r) {
+                $href = rawurldecode(rtrim((string) $xp->evaluate('string(d:href)', $r), '/'));
+                if ($href === rawurldecode($base)) {
+                    continue; // sam folder
+                }
+                $isDir = $xp->query('.//d:resourcetype/d:collection', $r)->length > 0;
+                $items[] = [
+                    'name' => basename($href),
+                    'dir'  => $isDir,
+                    'size' => (int) $xp->evaluate('string(.//d:getcontentlength)', $r),
+                    'type' => (string) $xp->evaluate('string(.//d:getcontenttype)', $r),
+                    'mod'  => strtotime((string) $xp->evaluate('string(.//d:getlastmodified)', $r)) ?: 0,
+                ];
+            }
+        }
+        usort($items, fn($a, $b) => [$b['dir'], mb_strtolower($a['name'])] <=> [$a['dir'], mb_strtolower($b['name'])]);
+        $rc->output->command('plugin.feer_cloud_list', ['path' => $path, 'items' => $items]);
+        $rc->output->send();
+    }
+
+    /** Dołącz plik z chmury do wiadomości (_id = compose id, _path = plik, _uploadid = miejsce na liście). */
+    public function action_attach(): void
+    {
+        $rc = rcmail::get_instance();
+        $this->add_texts('localization/');
+        $c  = $this->cloud();
+        $uploadid = rcube_utils::get_input_string('_uploadid', rcube_utils::INPUT_POST);
+        $fail = function (string $msg) use ($rc, $uploadid) {
+            $rc->output->command('display_message', $msg, 'error');
+            $rc->output->command('remove_from_attachment_list', $uploadid);
+            $rc->output->send();
+        };
+        if (!$c) {
+            $rc->output->command('plugin.feer_cloud_save_connect');
+            $rc->output->send();
+            return;
+        }
+        [$dav, $user, $pass] = $c;
+        $path = $this->input_path('_path');
+        $compose_id = rcube_utils::get_input_string('_id', rcube_utils::INPUT_POST);
+        if ($path === '' || $compose_id === '' || empty($_SESSION['compose_data_' . $compose_id])) {
+            $fail($this->gettext('attacherror'));
+            return;
+        }
+
+        $tmpdir = rtrim((string) $rc->config->get('temp_dir', sys_get_temp_dir()), '/');
+        $tmp = tempnam($tmpdir, 'feercloud');
+        $fh  = fopen($tmp, 'w');
+        $ch  = curl_init($dav . $this->enc_path($path));
+        curl_setopt_array($ch, [
+            CURLOPT_USERPWD        => $user . ':' . $pass,
+            CURLOPT_FILE           => $fh,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT        => 120,
+            CURLOPT_MAXFILESIZE    => self::MAX_BYTES,
+        ]);
+        curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+        fclose($fh);
+        if ($code !== 200) {
+            @unlink($tmp);
+            $fail($this->gettext($code === 401 ? 'autherror' : 'attacherror'));
+            return;
+        }
+
+        $name = basename($path);
+        $size = filesize($tmp);
+        $type = rcube_mime::file_content_type($tmp, $name);
+
+        // jak zwykłe wgranie pliku: limit wiadomości, zapis, wpis na liście
+        rcmail_action_mail_attachment_upload::init();
+        if ($err = rcmail_action_mail_attachment_upload::check_message_size($size, $type)) {
+            @unlink($tmp);
+            $fail($err);
+            return;
+        }
+        $att = ['path' => $tmp, 'name' => $name, 'size' => $size, 'mimetype' => $type, 'group' => $compose_id];
+        if (!$rc->insert_uploaded_file($att)) {
+            @unlink($tmp);
+            $fail($this->gettext('attacherror'));
+            return;
+        }
+        rcmail_action_mail_attachment_upload::attachment_success($att, $uploadid);
+        if (is_file($tmp) && ($att['path'] ?? '') !== $tmp) {
+            @unlink($tmp); // magazyn załączników zrobił własną kopię
+        }
+        $rc->output->command('plugin.feer_cloud_attached', ['path' => $path]);
         $rc->output->send();
     }
 
@@ -187,7 +382,7 @@ class feer_cloud_save extends rcube_plugin
         $login = (array) ($prefs['nextcloud_login'] ?? []);
         $user  = (string) ($login['loginName'] ?? '');
         $pass  = (string) ($login['appPassword'] ?? '');
-        $srv   = rtrim((string) $rc->config->get('nextcloud_attachment_server', ''), '/');
+        $srv   = rtrim((string) $rc->config->get('feer_cloud_server', ''), '/');
 
         if ($srv === '' || $user === '' || $pass === '') {
             $rc->output->command('plugin.feer_cloud_save_connect');

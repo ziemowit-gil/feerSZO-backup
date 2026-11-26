@@ -70,7 +70,8 @@
         .append($('<p>').text(t(reason === 'save' ? 'needconnect' : 'promptlead')))
         .append($('<ul>')
           .append($('<li>').text(t('benefit1')))
-          .append($('<li>').text(t('benefit2'))))
+          .append($('<li>').text(t('benefit2')))
+          .append($('<li>').text(t('benefit3'))))
         .append($('<p class="hint">').text(t('promptlogto')));
 
       var buttons = [{
@@ -88,12 +89,110 @@
       rcmail.show_popup_dialog(body, t('connecttitle'), buttons, { width: 480 });
     };
 
+    /** Zachęta do weryfikacji dwuetapowej (2FA dobrowolne). */
+    rcmail.feer_2fa_dialog = function () {
+      var body = $('<div class="feer-cloud-dialog">')
+        .append($('<p>').text(t('tfalead')))
+        .append($('<ul>')
+          .append($('<li>').text(t('tfa1')))
+          .append($('<li>').text(t('tfa2')))
+          .append($('<li>').text(t('tfa3'))))
+        .append($('<p class="hint">').text(t('tfahint')));
+      rcmail.show_popup_dialog(body, t('tfatitle'), [
+        { text: t('tfanow'), 'class': 'mainaction', click: function () {
+            $(this).dialog('close');
+            location.href = rcmail.url('settings/plugin.twofactor_gauthenticator'); } },
+        { text: t('later'), click: function () {
+            rcmail.http_post('plugin.feer_cloud_prompt', { _what: '2fa', _answer: 'later' }, false); $(this).dialog('close'); } }
+      ], { width: 500 });
+    };
+
     rcmail.addEventListener('init', function () {
       if (rcmail.env.feer_cloud_prompt) {
         setTimeout(function () { rcmail.feer_cloud_dialog('prompt'); }, 1200);
+      } else if (rcmail.env.feer_2fa_prompt) {
+        setTimeout(function () { rcmail.feer_2fa_dialog(); }, 1200);
       }
     });
   }
+
+  // ── Okno pisania: „Z chmury” ──────────────────────────────────────────────
+  rcmail.addEventListener('init', function () {
+    if (rcmail.env.action !== 'compose') return;
+    function t(k) { return rcmail.gettext('feer_cloud_save.' + k); }
+    var dlg = null, cur = '';
+
+    function size(n) {
+      if (!n) return '';
+      var u = ['B', 'kB', 'MB', 'GB'], i = 0;
+      while (n >= 1024 && i < 3) { n /= 1024; i++; }
+      return (i ? n.toFixed(1).replace('.', ',') : n) + ' ' + u[i];
+    }
+
+    function load(path) {
+      cur = path || '';
+      if (dlg) dlg.find('.feer-cloud-list').attr('aria-busy', 'true');
+      rcmail.http_post('plugin.feer_cloud_list', { _path: cur }, rcmail.set_busy(true, 'loading'));
+    }
+
+    function open() {
+      var box = $('<div class="feer-cloud-picker">')
+        .append($('<nav class="feer-cloud-crumbs" aria-label="' + t('folder') + '">'))
+        .append($('<ul class="feer-cloud-list listing" role="list" aria-live="polite">'));
+      dlg = rcmail.show_popup_dialog(box, t('fromcloudtitle'),
+        [{ text: rcmail.gettext('close'), click: function () { $(this).dialog('close'); } }],
+        { width: 620, height: 520, close: function () { dlg = null; } });
+      load(cur);
+    }
+
+    rcmail.register_command('plugin.feer_cloud_attach', open, true);
+
+    rcmail.addEventListener('plugin.feer_cloud_list', function (p) {
+      if (!dlg) return;
+      var list = dlg.find('.feer-cloud-list').empty().attr('aria-busy', 'false');
+      var crumbs = dlg.find('.feer-cloud-crumbs').empty();
+      if (p.error) {
+        list.append($('<li class="feer-cloud-msg">').text(t(p.error === 'auth' ? 'autherror' : 'listerror')));
+        return;
+      }
+      var parts = p.path ? p.path.split('/') : [], acc = [];
+      crumbs.append($('<a href="#">').text(t('cloudroot')).on('click', function (e) { e.preventDefault(); load(''); }));
+      parts.forEach(function (x) {
+        acc.push(x); var to = acc.join('/');
+        crumbs.append(document.createTextNode(' / '))
+          .append($('<a href="#">').text(x).on('click', function (e) { e.preventDefault(); load(to); }));
+      });
+      if (!p.items || !p.items.length) {
+        list.append($('<li class="feer-cloud-msg">').text(t('emptyfolder')));
+      }
+      (p.items || []).forEach(function (it) {
+        var full = (p.path ? p.path + '/' : '') + it.name;
+        var a = $('<a href="#">').addClass(it.dir ? 'feer-dir' : 'feer-file')
+          .append($('<span class="feer-name">').text(it.name))
+          .append($('<span class="feer-size">').text(it.dir ? '' : size(it.size)))
+          .attr('title', it.dir ? t('openfolder') : t('attachfile'))
+          .on('click', function (e) {
+            e.preventDefault();
+            if (it.dir) { load(full); return; }
+            if ($(this).hasClass('feer-done')) return;
+            $(this).addClass('feer-done').attr('aria-disabled', 'true');
+            var uploadid = 'feercloud' + new Date().getTime() + Math.floor(Math.random() * 1000);
+            rcmail.add2attachment_list(uploadid, { name: it.name, html: rcmail.gettext('uploading'), classname: 'uploading', complete: false });
+            rcmail.http_post('plugin.feer_cloud_attach', { _id: rcmail.env.compose_id, _path: full, _uploadid: uploadid }, false);
+          });
+        list.append($('<li>').append(a));
+      });
+    });
+
+    rcmail.addEventListener('plugin.feer_cloud_attached', function (p) {
+      rcmail.display_message(t('attached'), 'confirmation', 3000);
+    });
+
+    rcmail.addEventListener('plugin.feer_cloud_save_connect', function () {
+      if (dlg) dlg.dialog('close');
+      if (rcmail.feer_cloud_dialog) rcmail.feer_cloud_dialog('save');
+    });
+  });
 
   // ── Podgląd wiadomości (ramka albo okno): menu załącznika ────────────────
   rcmail.addEventListener('init', function () {

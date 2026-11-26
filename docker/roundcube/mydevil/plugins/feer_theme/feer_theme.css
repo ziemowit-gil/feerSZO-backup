@@ -585,6 +585,14 @@ body.task-login #rcmloginsubmit:hover {
   border-color: var(--feer-navy) !important;
 }
 
+/* „Odzyskaj dostęp” (feer_login) pod przyciskiem Zaloguj */
+body.task-login .feer-login-recovery {
+  margin: .9rem 0 0; text-align: center; font-size: .875rem; color: #475569;
+}
+body.task-login .feer-login-recovery a { color: var(--feer-blue); font-weight: 600; text-decoration: underline; }
+html.dark-mode body.task-login .feer-login-recovery { color: #cbd5e1; }
+html.dark-mode body.task-login .feer-login-recovery a { color: #93c5fd; }
+
 /* Stopka w karcie: nazwa + odnośnik do pomocy, oddzielona linią */
 body.task-login #login-footer {
   margin: 1.5rem 0 0 !important;
@@ -620,6 +628,22 @@ body.task-login #messagestack { z-index: 10; }
 /* feer_cloud_save: ikona chmury. Elastic ma okrojony font Icons: \f0ee nie ma, \f382 (cloud-upload-alt) jest */
 .menu a.feer-cloud:before,
 .menu a.feer-cloud-all:before { content: "\f382"; }
+/* „Z chmury” w oknie pisania (feer_cloud_save): przycisk + okno wyboru */
+.toolbar a.feer-cloud-attach:before { content: "\f382"; }
+.feer-cloud-picker .feer-cloud-crumbs { margin: 0 0 .6rem; font-size: .9rem; color: var(--feer-muted); }
+.feer-cloud-picker .feer-cloud-crumbs a { color: var(--feer-blue); font-weight: 600; }
+.feer-cloud-picker .feer-cloud-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--feer-border); border-radius: var(--feer-radius); }
+.feer-cloud-picker .feer-cloud-list li + li { border-top: 1px solid var(--feer-border-soft); }
+.feer-cloud-picker .feer-cloud-list a { display: flex; gap: .6rem; align-items: center; padding: .55rem .75rem; color: var(--feer-text); text-decoration: none; }
+.feer-cloud-picker .feer-cloud-list a:hover, .feer-cloud-picker .feer-cloud-list a:focus-visible { background: var(--feer-hover); }
+.feer-cloud-picker .feer-cloud-list a:before { font-family: Icons; font-weight: 900; width: 1.2rem; text-align: center; color: var(--feer-blue); }
+.feer-cloud-picker a.feer-dir:before { content: "\f07c"; }
+.feer-cloud-picker a.feer-file:before { content: "\f382"; color: var(--feer-muted); }
+.feer-cloud-picker .feer-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feer-cloud-picker .feer-size { color: var(--feer-muted); font-size: .85rem; white-space: nowrap; }
+.feer-cloud-picker a.feer-done { opacity: .55; }
+.feer-cloud-picker a.feer-done .feer-size:after { content: " ✓"; color: #15803d; font-weight: 700; }
+.feer-cloud-picker .feer-cloud-msg { padding: .9rem; color: var(--feer-muted); }
 .feer-cloud-dialog p { margin: 0 0 .6rem; line-height: 1.5; }
 .feer-cloud-dialog ul { margin: 0 0 .8rem 1.1rem; padding: 0; line-height: 1.6; }
 .feer-cloud-dialog .hint { font-size: .85rem; color: var(--feer-muted); }

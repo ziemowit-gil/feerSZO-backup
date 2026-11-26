@@ -68,15 +68,18 @@ $config['plugins'] = [
     'feer_theme',            // barwy FEER na skinie Elastic (własny)
     'feer_signature',        // stopka z SZO w tożsamości przy logowaniu (własny)
     'carddav',               // książki adresowe z chmury nc.feer.org.pl
+    'feer_directory',        // książka „Fundacja FEER” z katalogu SZO (własny, tylko @feer.org.pl)
+    'feer_cloud_dav',        // kalendarz z chmury po połączeniu (PRZED calendar; własny)
     'libcalendaring',        // wymagane przez calendar
     'libkolab',              // wymagane przez calendar
-    'calendar',              // kolab/calendar, sterownik database
+    'calendar',              // kolab/calendar: database albo caldav z chmury (feer_cloud_dav)
     'managesieve',           // filtry i autoodpowiedź (tylko dPoczta; sdata nie ma ManageSieve)
     'nextcloud_attachments', // duże załączniki jako link do chmury
     'feer_cloud_save',       // połączenie z chmurą (Login Flow, Logto) + „Zapisz w chmurze” (własny)
     'contextmenu',           // menu pod prawym przyciskiem
     'thunderbird_labels',    // etykiety jak w Thunderbirdzie
     'persistent_login',      // „Zapamiętaj mnie” (tokeny, 7 dni)
+    'twofactor_gauthenticator', // 2FA: kod TOTP z aplikacji (dobrowolne; GitHub b6afa8f44b)
     'identity_select',       // tożsamość nadawcy wg adresu, na który przyszła wiadomość
     'archive',
     'zipdownload',
@@ -117,6 +120,31 @@ $config['collected_recipients'] = true;
 $config['collected_senders'] = true;
 
 // feer_cloud_save: folder w chmurze (pod nim RRRR-MM); logowanie = połączenie nextcloud_attachments
+// Chmura FEER dla własnych wtyczek (feer_cloud_save, feer_cloud_dav) — niezależnie od tego, czy
+// nextcloud_attachments (który ma własne nextcloud_attachment_server) jest w danym zadaniu załadowany
+$config['feer_cloud_server'] = 'https://nc.feer.org.pl';
 $config['feer_cloud_save_folder'] = 'Załączniki z poczty/Odebrane';
 // Zachęta „Połącz pocztę z chmurą” po logowaniu: tylko skrzynki na tych serwerach IMAP (@feer.org.pl)
 $config['feer_cloud_prompt_hosts'] = ['imap.dpoczta.pl'];
+
+// Kalendarz: domyślnie w bazie Roundcube; po połączeniu z chmurą feer_cloud_dav przełącza na caldav
+$config['calendar_driver'] = 'database';
+
+// Link pod formularzem logowania (feer_login): odzyskanie dostępu / zmiana hasła w SZO
+$config['feer_login_recovery_url'] = 'https://szo.feer.org.pl/nowehaslo';
+
+// Foldery specjalne ustala system, użytkownik ich nie zmienia (Ustawienia → Foldery specjalne znika).
+// Nazwy jak na dPoczcie (Dovecot, separator „.”). sdata (@stud): jeśli ma inne nazwy, Roundcube
+// utworzy brakujące foldery o tych nazwach.
+$config['drafts_mbox']  = 'Drafts';
+$config['sent_mbox']    = 'Sent';
+$config['junk_mbox']    = 'SPAM';
+$config['trash_mbox']   = 'Trash';
+$config['archive_mbox'] = 'Archives';
+$config['create_default_folders'] = true;
+$config['dont_override'] = ['drafts_mbox', 'sent_mbox', 'junk_mbox', 'trash_mbox', 'archive_mbox'];
+
+// Książka adresowa „Fundacja FEER” (feer_directory): katalog SZO, klucz jak przy stopkach
+$config['feer_directory_url'] = 'https://szo.feer.org.pl/api/internal/rc_directory.php';
+$config['feer_directory_hosts'] = ['imap.dpoczta.pl'];
+$config['feer_directory_ttl'] = 3600;
