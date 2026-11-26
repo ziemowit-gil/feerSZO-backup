@@ -605,3 +605,44 @@ body:not([data-themes*="dark"]) .passwordsapp .row:hover { background: #F5F8FF !
 .template-card :focus-visible, .file-card :focus-visible {
 	outline: 3px solid #1559D6 !important; outline-offset: 2px !important; border-radius: 12px;
 }
+
+/* ── Pulpit (WCAG 2.2 AA) ──
+ * Powitanie i statusy leżą na wzorzystej grafice — ciemne tło pod tekstem zamiast samego białego tekstu;
+ * kafle: nagłówki, treść, linki i „Więcej…” czytelne; okno „Dostosuj”: checkboxy, tła, fokus.
+ */
+#app-dashboard > h2 {
+	display: table; margin: 24px auto 8px !important; padding: 8px 20px !important; border-radius: 14px;
+	background: rgba(15, 23, 42, .72); color: #ffffff !important; font-size: 30px !important;
+}
+#app-dashboard .statuses { gap: 8px; }
+#app-dashboard .statuses > *, #app-dashboard .statuses button {
+	background: rgba(15, 23, 42, .72) !important; color: #ffffff !important; border-radius: 999px !important;
+	min-height: 40px; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+#app-dashboard .statuses * { color: #ffffff !important; }
+/* kafle */
+#app-dashboard .panel--header h2, #app-dashboard .panel--header h2 span { color: #111827 !important; font-size: 18px !important; font-weight: 700 !important; }
+#app-dashboard .panel--content { color: #111827; }
+#app-dashboard .panel--content a { color: #111827; }
+#app-dashboard .panel--content .item-list__entry, #app-dashboard .panel--content [class*="item"] { min-height: 44px; }
+#app-dashboard .panel--content .item__details .subline, #app-dashboard .panel--content .subline,
+#app-dashboard .panel--content .item-list__entry .item__details span:not(.main-text) { color: #4B5563 !important; opacity: 1 !important; }
+#app-dashboard .panel a.more, #app-dashboard .panel .more, #app-dashboard .panel--content .button-vue--tertiary {
+	color: #1559D6 !important; font-weight: 600; text-decoration: underline; text-underline-offset: 3px;
+}
+#app-dashboard .panel .empty-content__description, #app-dashboard .panel .empty-content__name { color: #374151 !important; }
+/* „Dostosuj” */
+#app-dashboard .edit-panels {
+	background: #ffffff !important; color: #111827 !important; border: 1px solid #64748B !important;
+	min-height: 44px; font-weight: 600; box-shadow: 0 4px 14px rgba(15, 23, 42, .25);
+}
+#app-dashboard .edit-panels:hover { background: #EEF4FF !important; }
+/* okno „Dostosuj pulpit” */
+.modal__content h2, .modal__content h3 { color: #111827 !important; }
+.modal__content li label, .modal__content li .checkbox-radio-switch__text { color: #111827 !important; font-size: 15px; }
+.modal__content .background-selector button, .modal__content [class*="background"] button { min-width: 44px; min-height: 44px; }
+.modal__content .credits, .modal__content .credits--end { color: #374151 !important; }
+/* fokus */
+#app-dashboard :focus-visible, .modal__content :focus-visible {
+	outline: 3px solid #1559D6 !important; outline-offset: 2px !important; box-shadow: 0 0 0 6px #ffffff !important;
+}
