@@ -3,9 +3,9 @@
       xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>feer_poczta</id>
 	<name>Poczta FEER</name>
-	<summary>Kafle „Poczta” i „Komunikaty z SZO” na pulpicie</summary>
-	<description>Widżety pulpitu: odnośnik do poczta.feer.org.pl i komunikaty z SZO.</description>
-	<version>1.1.0</version>
+	<summary>Kafel „SZO” na pulpicie: poczta, komunikaty, zadania</summary>
+	<description>Widżet pulpitu z odnośnikiem do poczta.feer.org.pl, komunikatami i zadaniami z SZO.</description>
+	<version>1.2.0</version>
 	<licence>agpl</licence>
 	<author>Fundacja FEER</author>
 	<namespace>FeerPoczta</namespace>
