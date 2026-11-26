@@ -20,13 +20,7 @@ if (!viewer_owns_contract($TYPE, $row)) { flash_set('error', 'Nie masz dostępu 
 $PAGE_TITLE = 'Umowa o pracę ' . $row['numer_umowy'];
 
 $person = !empty($row['person_id']) ? person_by_id((int)$row['person_id']) : null;
-$unit_name = '';
-if (!empty($row['org_unit_id'])) {
-    try {
-        $pos = db_one("SELECT name FROM org_units WHERE id=?", [(int)$row['org_unit_id']]);
-        $unit_name = $pos['name'] ?? '';
-    } catch(\Throwable $e) {}
-}
+$unit_name = ''; // jednostkę mają tylko umowy zlecenia i wolontariackie (ContractLinks::TYPES)
 
 // ── Szybka zmiana statusu ─────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['_set_status'])) {

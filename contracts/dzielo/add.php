@@ -65,9 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'podpisujacy_fundacja','podpisujacy_stanowisko',
             'plik_potwierdzenia','plik_umowy','uwagi','created_by','created_at','updated_at',
             'm365_konto','m365_login','m365_user_id','m365_konto_aktywne','m365_data_utworzenia','m365_licencja_przypisana',
-            'nr_roboczy','nr_system','nr_rejestru','person_id','org_unit_id'];
+            'nr_roboczy','nr_system','nr_rejestru','person_id'];
         $data = array_intersect_key($row, array_flip($allowed));
-        foreach (['person_id','org_unit_id'] as $fk) {
+        foreach (['person_id'] as $fk) {
             if (isset($data[$fk]) && $data[$fk] === '') $data[$fk] = null;
         }
 
@@ -123,8 +123,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$_units = [];
-try { $_units = db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY sort_order, name"); } catch(\Throwable $e) {}
 
 include dirname(dirname(__DIR__)) . '/includes/header.php';
 ?>
@@ -274,15 +272,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
       <label for="dz_pesel" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">PESEL</label>
       <input name="pesel" id="dz_pesel" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none"
              maxlength="11" pattern="\d{11}" value="<?= h($row['pesel']??'') ?>">
-    </div>
-    <div>
-      <label for="org_unit_id" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Komórka organizacyjna</label>
-      <select id="org_unit_id" name="org_unit_id" class="tw-w-full tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
-        <option value="">— wybierz —</option>
-        <?php foreach ($_units as $u): ?>
-        <option value="<?= h($u['id']) ?>" <?= ($row['org_unit_id']??'')==$u['id']?'selected':'' ?>><?= h($u['name']) ?></option>
-        <?php endforeach; ?>
-      </select>
     </div>
     <div class="sm:tw-col-span-3">
       <label class="tw-block tw-text-sm tw-font-semibold tw-text-slate-700 tw-mb-1"><i class="bi bi-house me-1 tw-text-slate-400"></i>Adres zamieszkania / siedziby</label>

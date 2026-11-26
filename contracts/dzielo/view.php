@@ -86,13 +86,7 @@ $has_pending_edit = !empty(array_filter($edit_requests, fn($r) => $r['status'] =
 $m365_enabled     = m365_setting('m365_enabled') === '1';
 
 $person = !empty($row['person_id']) ? person_by_id((int)$row['person_id']) : null;
-$unit_name = '';
-if (!empty($row['org_unit_id'])) {
-    try {
-        $pos = db_one("SELECT name FROM org_units WHERE id=?", [(int)$row['org_unit_id']]);
-        $unit_name = $pos['name'] ?? '';
-    } catch(\Throwable $e) {}
-}
+$unit_name = ''; // jednostkę mają tylko umowy zlecenia i wolontariackie (ContractLinks::TYPES)
 
 $_badge_obieg = 0;
 if ($approval && $approval['status'] === 'oczekuje') $_badge_obieg++;

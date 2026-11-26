@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'klauzula_rodo', 'opiekun_przelozony', 'forma_podpisania', 'platforma_el',
             'id_dokumentu_el', 'plik_potwierdzenia', 'plik_umowy', 'aneksy', 'uwagi',
             'nr_roboczy', 'nr_system', 'nr_rejestru', 'updated_at',
-            'person_id', 'org_unit_id',
+            'person_id',
         ];
         $save = array_intersect_key($data, array_flip($allowed));
         require_once dirname(dirname(__DIR__)) . '/includes/amendments.php';
@@ -225,21 +225,6 @@ include dirname(dirname(__DIR__)) . '/includes/header.php';
     </div>
     <input type="hidden" name="person_id" id="person_id" value="<?= h($row['person_id'] ?? '') ?>">
     <p class="tw-mt-1 tw-text-xs tw-text-slate-500">Opcjonalnie: wybierz istniejącą osobę lub <a href="<?= APP_URL ?>/persons/add.php" target="_blank" class="tw-text-blue-600 hover:tw-underline">dodaj nową</a>.</p>
-  </div>
-
-  <div class="tw-mb-4">
-    <label for="org_unit_id" class="tw-block tw-text-sm tw-font-medium tw-text-slate-700 tw-mb-1">Komórka organizacyjna</label>
-    <select id="org_unit_id" name="org_unit_id" class="tw-w-full sm:tw-w-1/2 tw-rounded-lg tw-border tw-border-solid tw-border-slate-300 tw-bg-white tw-px-3 tw-py-2 tw-text-sm focus:tw-border-blue-500 focus:tw-ring-2 focus:tw-ring-blue-100 tw-outline-none">
-      <option value="">— wybierz —</option>
-      <?php
-      try {
-        $units = db_all("SELECT id, name FROM org_units WHERE status='active' ORDER BY sort_order, name");
-        foreach ($units as $pos):
-          $sel = ($row['org_unit_id'] ?? '') == $pos['id'] ? 'selected' : '';
-      ?>
-      <option value="<?= h($pos['id']) ?>" <?= $sel ?>><?= h($pos['name']) ?></option>
-      <?php endforeach; } catch(\Throwable $e) {} ?>
-    </select>
   </div>
 
   <div class="tw-grid tw-grid-cols-1 sm:tw-grid-cols-3 tw-gap-4">
