@@ -86,14 +86,18 @@ type qsignJob struct {
 	Dir     string
 	Data    []byte
 	Created time.Time
+	Kind    string // cms (część MIME wiadomości) | pades (załącznik PDF)
+	File    string // nazwa pliku w katalogu zadania
 
-	mu        sync.Mutex
-	Status    string // pending | done | error | cancelled
-	Err       string
-	CMS       []byte
-	Micalg    string
-	Signer    string
-	Qualified bool
+	mu          sync.Mutex
+	Status      string // pending | done | error | cancelled
+	Err         string
+	CMS         []byte
+	Micalg      string
+	Signer      string
+	Qualified   bool
+	PDF         []byte // pades: podpisany dokument
+	Incremental bool   // pades: podpisany PDF zaczyna się bajtami oryginału
 }
 
 func (j *qsignJob) snapshot() map[string]interface{} {
@@ -106,6 +110,10 @@ func (j *qsignJob) snapshot() map[string]interface{} {
 		out["micalg"] = j.Micalg
 		out["signer"] = j.Signer
 		out["qualified"] = j.Qualified
+		if j.Kind == "pades" {
+			out["pdf_b64"] = base64.StdEncoding.EncodeToString(j.PDF)
+			out["incremental"] = j.Incremental
+		}
 	case "error", "cancelled":
 		out["error"] = j.Err
 	}
@@ -173,10 +181,12 @@ func (s *qsignServer) handlePing(w http.ResponseWriter, r *http.Request) {
 }
 
 type qsignRequest struct {
-	DataB64 string `json:"data_b64"`
-	From    string `json:"from"`
-	To      string `json:"to"`
-	Subject string `json:"subject"`
+	Kind     string `json:"kind"`     // "" / "cms" = wiadomość, "pades" = dokument PDF
+	Filename string `json:"filename"` // pades: nazwa załącznika
+	DataB64  string `json:"data_b64"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Subject  string `json:"subject"`
 }
 
 func (s *qsignServer) activeJob() *qsignJob {
@@ -207,6 +217,19 @@ func (s *qsignServer) handleSign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	kind := req.Kind
+	if kind == "" {
+		kind = "cms"
+	}
+	if kind != "cms" && kind != "pades" {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "nieznany rodzaj podpisu"})
+		return
+	}
+	if kind == "pades" && !bytes.HasPrefix(data, []byte("%PDF-")) {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "to nie jest plik PDF"})
+		return
+	}
+
 	s.mu.Lock()
 	busy := s.activeJob() != nil
 	s.mu.Unlock()
@@ -215,12 +238,16 @@ func (s *qsignServer) handleSign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !qsignConfirm(confirmText(req, data)) {
+	text := confirmText(req, data)
+	if kind == "pades" {
+		text = confirmTextPDF(req, data)
+	}
+	if !qsignConfirm(text) {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "status": "cancelled", "error": "Podpis anulowany na komputerze."})
 		return
 	}
 
-	job, err := s.startJob(data)
+	job, err := s.startJob(data, kind, req.Filename)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
@@ -228,7 +255,7 @@ func (s *qsignServer) handleSign(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "status": "pending", "job_id": job.ID})
 }
 
-func (s *qsignServer) startJob(data []byte) (*qsignJob, error) {
+func (s *qsignServer) startJob(data []byte, kind, filename string) (*qsignJob, error) {
 	base, err := qsignBaseDir()
 	if err != nil {
 		return nil, err
@@ -245,11 +272,15 @@ func (s *qsignServer) startJob(data []byte) (*qsignJob, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	path := filepath.Join(dir, qsignDataName)
+	name := qsignDataName
+	if kind == "pades" {
+		name = safePDFName(filename)
+	}
+	path := filepath.Join(dir, name)
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		return nil, err
 	}
-	job := &qsignJob{ID: id, Dir: dir, Data: data, Created: time.Now(), Status: "pending"}
+	job := &qsignJob{ID: id, Dir: dir, Data: data, Created: time.Now(), Status: "pending", Kind: kind, File: name}
 
 	s.mu.Lock()
 	s.jobs[id] = job
@@ -288,7 +319,18 @@ func (s *qsignServer) watch(job *qsignJob) {
 		entries, _ := os.ReadDir(job.Dir)
 		for _, e := range entries {
 			name := e.Name()
-			if e.IsDir() || name == qsignDataName || strings.HasPrefix(name, ".") {
+			if e.IsDir() || strings.HasPrefix(name, ".") || strings.HasSuffix(name, ".tmp") {
+				continue
+			}
+			if job.Kind == "cms" && name == job.File {
+				continue
+			}
+			if job.Kind == "pades" && !strings.EqualFold(filepath.Ext(name), ".pdf") {
+				low := strings.ToLower(name)
+				if strings.HasSuffix(low, ".xades") || strings.HasSuffix(low, ".xml") || strings.HasSuffix(low, ".sig") || strings.HasSuffix(low, ".p7s") {
+					job.finish("error", "PEM-HEART zapisał podpis zewnętrzny ("+name+"). Dla PDF wybierz format PAdES (podpis w pliku PDF).")
+					return
+				}
 				continue
 			}
 			info, err := e.Info()
@@ -304,7 +346,15 @@ func (s *qsignServer) watch(job *qsignJob) {
 			if err != nil {
 				continue
 			}
-			res, err := verifyDetachedCMS(raw, job.Data)
+			if job.Kind == "pades" && name == job.File && bytes.Equal(raw, job.Data) {
+				continue // oryginał bez zmian
+			}
+			var res *cmsResult
+			if job.Kind == "pades" {
+				res, err = verifyPAdES(raw, job.Data)
+			} else {
+				res, err = verifyDetachedCMS(raw, job.Data)
+			}
 			if err != nil {
 				var fatal *qsignFatal
 				if errors.As(err, &fatal) {
@@ -312,7 +362,11 @@ func (s *qsignServer) watch(job *qsignJob) {
 					return
 				}
 				if fails[name]++; fails[name] >= 3 {
-					job.finish("error", "Plik "+name+" nie jest poprawnym podpisem CAdES tej wiadomości: "+err.Error())
+					what := "podpisem CAdES tej wiadomości"
+					if job.Kind == "pades" {
+						what = "podpisanym (PAdES) dokumentem"
+					}
+					job.finish("error", "Plik "+name+" nie jest poprawnym "+what+": "+err.Error())
 					return
 				}
 				continue
@@ -320,6 +374,9 @@ func (s *qsignServer) watch(job *qsignJob) {
 			job.mu.Lock()
 			if job.Status == "pending" {
 				job.Status, job.CMS, job.Micalg, job.Signer, job.Qualified = "done", res.DER, res.Micalg, res.Signer, res.Qualified
+				if job.Kind == "pades" {
+					job.PDF, job.Incremental = raw, bytes.HasPrefix(raw, job.Data)
+				}
 			}
 			job.mu.Unlock()
 			log.Printf("podpisano: %s (%s)", res.Signer, res.Micalg)
@@ -328,6 +385,23 @@ func (s *qsignServer) watch(job *qsignJob) {
 		time.Sleep(qsignPoll)
 	}
 	job.finish("error", "Minął czas na podpis w PEM-HEART (15 min).")
+}
+
+// safePDFName: sama nazwa pliku (bez ścieżki), bezpieczne znaki, końcówka .pdf.
+func safePDFName(n string) string {
+	n = filepath.Base(strings.ReplaceAll(n, "\\", "/"))
+	n = regexp.MustCompile(`[^\p{L}\p{N} ._()-]+`).ReplaceAllString(n, "_")
+	n = strings.TrimLeft(strings.TrimSpace(n), ".")
+	if n == "" || n == "_" {
+		n = "dokument"
+	}
+	if !strings.EqualFold(filepath.Ext(n), ".pdf") {
+		n += ".pdf"
+	}
+	if r := []rune(n); len(r) > 120 {
+		n = string(r[len(r)-120:])
+	}
+	return n
 }
 
 func (s *qsignServer) lookup(r *http.Request) *qsignJob {
@@ -426,6 +500,50 @@ func verifyDetachedCMS(raw, data []byte) (*cmsResult, error) {
 	return &cmsResult{DER: der, Micalg: micalg, Signer: signerName(cert), Qualified: hasExt(cert, oidQcStatements)}, nil
 }
 
+var byteRangeRe = regexp.MustCompile(`/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]`)
+
+// verifyPAdES sprawdza ostatni podpis w PDF: obejmuje cały plik, CMS odłączony i zgodny
+// z bajtami z /ByteRange. Nie sprawdza łańcucha zaufania (robi to serwer/odbiorca).
+func verifyPAdES(signed, orig []byte) (*cmsResult, error) {
+	if !bytes.HasPrefix(signed, []byte("%PDF-")) {
+		return nil, errors.New("to nie jest PDF")
+	}
+	all := byteRangeRe.FindAllSubmatchIndex(signed, -1)
+	if len(all) == 0 {
+		return nil, errors.New("w PDF nie ma podpisu (/ByteRange)")
+	}
+	m := all[len(all)-1]
+	num := func(i int) int {
+		v := 0
+		for _, c := range signed[m[2*i]:m[2*i+1]] {
+			v = v*10 + int(c-'0')
+			if v > len(signed) {
+				return -1
+			}
+		}
+		return v
+	}
+	a, b, c, d := num(1), num(2), num(3), num(4)
+	if a != 0 || b <= 0 || c <= b || d < 0 || c+d != len(signed) {
+		return nil, &qsignFatal{"Ostatni podpis w PDF nie obejmuje całego dokumentu."}
+	}
+	hexPart := bytes.TrimSpace(signed[b:c])
+	if len(hexPart) < 2 || hexPart[0] != '<' || hexPart[len(hexPart)-1] != '>' {
+		return nil, errors.New("błędne /Contents podpisu")
+	}
+	der, err := hex.DecodeString(string(hexPart[1 : len(hexPart)-1]))
+	if err != nil {
+		return nil, errors.New("błędne /Contents podpisu")
+	}
+	var raw asn1.RawValue
+	if _, err := asn1.Unmarshal(der, &raw); err != nil {
+		return nil, errors.New("błędny CMS w PDF")
+	}
+	der = raw.FullBytes // bez dopełnienia zerami
+	content := append(append([]byte{}, signed[a:a+b]...), signed[c:c+d]...)
+	return verifyDetachedCMS(der, content)
+}
+
 func micalgFor(oid asn1.ObjectIdentifier) (string, error) {
 	switch {
 	case oid.Equal(pkcs7.OIDDigestAlgorithmSHA256):
@@ -489,6 +607,19 @@ func confirmText(req qsignRequest, data []byte) string {
 	}
 	b.WriteString(fmt.Sprintf("\nRozmiar: %d B, SHA-256: %s…\n", len(data), hex.EncodeToString(sum[:])[:16]))
 	b.WriteString("\nPo kliknięciu „Podpisz w PEM-HEART” plik otworzy się w PEM-HEART. Wybierz podpis zewnętrzny w formacie CAdES i zapisz go w tym samym folderze.")
+	return b.String()
+}
+
+func confirmTextPDF(req qsignRequest, data []byte) string {
+	sum := sha256.Sum256(data)
+	var b strings.Builder
+	b.WriteString("Webmail poczta.feer.org.pl prosi o podpis kwalifikowany dokumentu PDF (PAdES).\n\n")
+	b.WriteString("Plik: " + clip(safePDFName(req.Filename), 140) + "\n")
+	if req.Subject != "" {
+		b.WriteString("Załącznik wiadomości: " + clip(req.Subject, 160) + "\n")
+	}
+	b.WriteString(fmt.Sprintf("Rozmiar: %d kB, SHA-256: %s…\n", (len(data)+1023)/1024, hex.EncodeToString(sum[:])[:16]))
+	b.WriteString("\nPo kliknięciu „Podpisz w PEM-HEART” dokument otworzy się w PEM-HEART. Wybierz format PAdES (podpis w pliku PDF) i zapisz podpisany plik w tym samym folderze.")
 	return b.String()
 }
 

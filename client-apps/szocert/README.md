@@ -50,7 +50,10 @@ API (tylko `Origin: https://poczta.feer.org.pl`, inne źródła i brak Origin = 
 `Access-Control-Allow-Private-Network` dla Chrome; testowo `SZOCERT_QSIGN_ORIGINS`):
 
 - `GET /qsign/ping` — wersja, czy jest PEM-HEART
-- `POST /qsign/sign` `{data_b64, from, to, subject}` — okno potwierdzenia (domyślnie „Anuluj”,
+- `POST /qsign/sign` `{kind, filename, data_b64, from, to, subject}` (`kind`: puste/`cms` = część MIME
+  wiadomości, `pades` = dokument PDF; dla PDF agent czeka na nowy/zmieniony `.pdf`, sprawdza ostatni
+  podpis z `/ByteRange` obejmujący cały plik i zwraca `pdf_b64` + `incremental`)
+  — — okno potwierdzenia (domyślnie „Anuluj”,
   podgląd treści i załączników odczytany z samego MIME, SHA-256), zapis do
   `~/Library/Application Support/SzoCert/podpis/<data>-<id>/wiadomosc.eml` (0600), otwarcie w PEM-HEART,
   zwraca `job_id`; jedno zadanie naraz

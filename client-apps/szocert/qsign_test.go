@@ -7,7 +7,9 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -165,5 +167,84 @@ func TestAgentFlow(t *testing.T) {
 	qsignConfirm = func(string) bool { return false }
 	if r := do(t, h, "POST", "/qsign/sign", testOrigin, qsignRequest{DataB64: "QQ=="}); r["status"] != "cancelled" {
 		t.Fatalf("odmowa: %v", r)
+	}
+}
+
+// fakePAdES: dopisuje do PDF przyrostowo słownik podpisu z /ByteRange i CMS (jak PEM-HEART).
+func fakePAdES(t *testing.T, orig []byte, tamper bool) []byte {
+	const L = 16384
+	dict := "9 0 obj\n<</Type/Sig/SubFilter/ETSI.CAdES.detached/ByteRange [0 %010d %010d %010d]/Contents <"
+	tail := ">>>\nendobj\n%%EOF\n"
+	b := len(orig) + len(fmt.Sprintf(dict, 0, 0, 0)) - 1 // pozycja '<'
+	c := b + 1 + L + 1                                   // za '>'
+	total := b + 1 + L + len(tail)
+	pre := []byte(string(orig) + fmt.Sprintf(dict, b, c, total-c))
+	content := append(append([]byte{}, pre[:b]...), []byte(tail[1:])...)
+	if tamper {
+		content[10] ^= 1
+	}
+	der := signCMS(t, content, true)
+	h := []byte(strings.ToUpper(hex.EncodeToString(der)))
+	h = append(h, bytes.Repeat([]byte("0"), L-len(h))...)
+	out := append(append(append([]byte{}, pre...), h...), []byte(tail)...)
+	if len(out) != total {
+		t.Fatalf("zła długość %d != %d", len(out), total)
+	}
+	return out
+}
+
+func TestVerifyPAdES(t *testing.T) {
+	orig := []byte("%PDF-1.4\n1 0 obj\n<</Type/Catalog>>\nendobj\n%%EOF\n")
+	signed := fakePAdES(t, orig, false)
+	res, err := verifyPAdES(signed, orig)
+	if err != nil || res.Micalg != "sha-512" {
+		t.Fatalf("pades: %v", err)
+	}
+	if _, err := verifyPAdES(fakePAdES(t, orig, true), orig); err == nil {
+		t.Fatal("podpis innych bajtów przeszedł")
+	}
+	cut := signed[:len(signed)-3]
+	if _, err := verifyPAdES(cut, orig); err == nil {
+		t.Fatal("PDF, którego podpis nie obejmuje całości, przeszedł")
+	}
+	if n := safePDFName("../../etc/umowa:zła?.pdf"); n != "umowa_zła_.pdf" {
+		t.Fatalf("nazwa: %q", n)
+	}
+}
+
+func TestAgentPAdESFlow(t *testing.T) {
+	tmp := t.TempDir()
+	qsignBaseDir = func() (string, error) { return tmp, nil }
+	qsignPoll = 20 * time.Millisecond
+	qsignConfirm = func(text string) bool { return strings.Contains(text, "PAdES") && strings.Contains(text, "umowa.pdf") }
+	orig := []byte("%PDF-1.4\n1 0 obj\n<</Type/Catalog>>\nendobj\n%%EOF\n")
+	signed := fakePAdES(t, orig, false)
+	qsignOpen = func(path string) error {
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			_ = os.WriteFile(strings.TrimSuffix(path, ".pdf")+"_podpisany.pdf", signed, 0600)
+		}()
+		return nil
+	}
+	h := newQsignServer().handler()
+	r := do(t, h, "POST", "/qsign/sign", testOrigin, qsignRequest{Kind: "pades", Filename: "umowa.pdf", DataB64: base64.StdEncoding.EncodeToString(orig)})
+	id, _ := r["job_id"].(string)
+	if id == "" {
+		t.Fatalf("sign: %v", r)
+	}
+	var res map[string]interface{}
+	for i := 0; i < 200; i++ {
+		res = do(t, h, "GET", "/qsign/job?id="+id, testOrigin, nil)
+		if res["status"] != "pending" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	got, _ := base64.StdEncoding.DecodeString(fmt.Sprint(res["pdf_b64"]))
+	if res["status"] != "done" || !bytes.Equal(got, signed) || res["incremental"] != true {
+		t.Fatalf("job: %v", res["status"])
+	}
+	if r := do(t, h, "POST", "/qsign/sign", testOrigin, qsignRequest{Kind: "pades", Filename: "x.pdf", DataB64: base64.StdEncoding.EncodeToString([]byte("nie pdf"))}); r["_code"] != float64(400) {
+		t.Fatalf("nie-PDF: %v", r)
 	}
 }
