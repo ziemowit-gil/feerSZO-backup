@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * contracts/przypisania.php — przypisanie aktywnych umów: kontakt (konto SZO), jednostka, obszar Zadań.
+ * contracts/przypisania.php — przypisanie aktywnych umów zlecenia i wolontariackich (ContractLinks::TYPES): kontakt (konto SZO), jednostka, obszar Zadań.
  * Tylko administrator. Przypomnienie (pasek) w Rejestrze Umów i Strukturze prowadzi tutaj.
  * Akcje (POST + CSRF): save (wiersz), auto (pewne dopasowania po e-mailu/M365), ai (propozycja podziału),
  * ai_apply (zatwierdzone przypisania z propozycji). Logika: modules/contract_links/lib/ContractLinks.php.
@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($op === 'save') {
         $type = (string)($_POST['contract_type'] ?? '');
         $id = (int)($_POST['contract_id'] ?? 0);
-        if (isset(CONTRACT_TYPES[$type]) && $id > 0) {
+        if (ContractLinks::allows($type) && $id > 0) {
             ContractLinks::save($type, $id, [
                 'user_id' => (int)($_POST['user_id'] ?? 0), 'unit_id' => (int)($_POST['unit_id'] ?? 0), 'workspace_id' => (int)($_POST['workspace_id'] ?? 0),
             ], 'manual', $uid);
@@ -74,7 +74,7 @@ include dirname(__DIR__) . '/includes/header.php';
 <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
   <div>
     <h1 class="h4 fw-bold mb-1"><i class="bi bi-diagram-2 text-primary me-2" aria-hidden="true"></i>Przypisanie aktywnych umów</h1>
-    <p class="text-muted mb-0" style="max-width:52rem">Każda aktywna umowa powinna mieć <strong>kontakt</strong> (konto osoby w SZO), <strong>jednostkę</strong> ze Struktury i <strong>obszar Zadań</strong>. Dzięki temu osoba trafia do właściwych grup w chmurze, zespołów i list.</p>
+    <p class="text-muted mb-0" style="max-width:52rem">Każda aktywna <strong>umowa zlecenia i wolontariacka</strong> powinna mieć <strong>kontakt</strong> (konto osoby w SZO), <strong>jednostkę</strong> ze Struktury i <strong>obszar Zadań</strong>. Dzięki temu osoba trafia do właściwych grup w chmurze, zespołów i list. Pozostałych rodzajów umów nie przypisujemy do jednostek ani zespołów.</p>
   </div>
   <div class="d-flex gap-2 flex-wrap">
     <form method="post"><?= csrf_field() ?><input type="hidden" name="op" value="auto">
@@ -87,9 +87,9 @@ include dirname(__DIR__) . '/includes/header.php';
 
 <div class="alert <?= $missingN ? 'alert-warning' : 'alert-success' ?> py-2" role="status">
   <?php if ($missingN): ?>
-  <strong><?= $missingN ?></strong> z <?= count($all) ?> aktywnych umów ma braki w przypisaniu.
+  <strong><?= $missingN ?></strong> z <?= count($all) ?> aktywnych umów zlecenia i wolontariackich ma braki w przypisaniu.
   <?php else: ?>
-  Wszystkie aktywne umowy (<?= count($all) ?>) mają kontakt, jednostkę i obszar.
+  Wszystkie aktywne umowy zlecenia i wolontariackie (<?= count($all) ?>) mają kontakt, jednostkę i obszar.
   <?php endif; ?>
   <a class="ms-2" href="?<?= $showAll ? '' : 'all=1' ?>"><?= $showAll ? 'Pokaż tylko z brakami' : 'Pokaż wszystkie aktywne' ?></a>
 </div>

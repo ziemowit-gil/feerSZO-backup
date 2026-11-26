@@ -67,6 +67,7 @@ function team_contract(array $b): array
 {
     $type = (string)($b['contract_type'] ?? '');
     $id   = (int)($b['contract_id'] ?? 0);
+    if (!TeamService::allowsContract($type)) team_fail('Do zespołów przypinamy tylko umowy zlecenia i wolontariackie.', 422);
     $info = TeamService::contractInfo($type, $id);
     if (!$info) team_fail('Nie ma takiej umowy.', 404);
     return $info;
@@ -172,7 +173,7 @@ if ($action === 'person_contracts') {
         'label' => $c['contract_type_label'] . ' ' . ($c['nr_rejestru'] ?: $c['numer_umowy'] ?: '#' . $c['id'])
             . ($c['data_zakonczenia'] ? ' (do ' . date('d.m.Y', strtotime((string)$c['data_zakonczenia'])) . ')' : ''),
         'health' => $c['health'],
-    ], TeamService::getPersonActiveContracts($pid));
+    ], TeamService::getPersonActiveContracts($pid, TeamService::CONTRACT_TYPES));
     task_api_ok(['contracts' => $list]);
 }
 

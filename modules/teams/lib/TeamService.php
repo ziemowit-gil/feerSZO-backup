@@ -305,6 +305,14 @@ final class TeamService
         return $cache[$table];
     }
 
+    /** Rodzaje umów, które przypinamy do zespołów i wskazujemy jako podstawę udziału: tylko zlecenie i wolontariat. */
+    public const CONTRACT_TYPES = ['zlecenie', 'wolontariat'];
+
+    public static function allowsContract(string $type): bool
+    {
+        return in_array($type, self::CONTRACT_TYPES, true);
+    }
+
     /** Podstawowe dane umowy BEZ kwot: rodzaj, numer, RU, strona, status, daty, adres karty. */
     public static function contractInfo(string $type, int $id): ?array
     {
@@ -349,15 +357,15 @@ final class TeamService
         return ['code' => 'active', 'label' => 'Aktywna'];
     }
 
-    /** Aktywne umowy osoby ze wszystkich rodzajów (dopasowanie po e-mailu i koncie M365, jak ts_user_contracts). */
-    public static function getPersonActiveContracts(int $userId): array
+    /** Aktywne umowy osoby (domyślnie wszystkich rodzajów; $types zawęża) — dopasowanie po e-mailu i koncie M365, jak ts_user_contracts. */
+    public static function getPersonActiveContracts(int $userId, ?array $types = null): array
     {
         $u = db_one("SELECT email, microsoft_id FROM users WHERE id=?", [$userId]);
         $email = strtolower(trim((string)($u['email'] ?? '')));
         $ms = trim((string)($u['microsoft_id'] ?? ''));
         if ($email === '' && $ms === '') return [];
         $out = [];
-        foreach (array_keys(CONTRACT_TYPES) as $type) {
+        foreach ($types ?? array_keys(CONTRACT_TYPES) as $type) {
             $table = table_for_type($type);
             $c = self::cols($table);
             $conds = []; $p = [];

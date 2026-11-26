@@ -1,6 +1,7 @@
 <?php
 /**
- * includes/_contract_teams_panel.php — sekcja „Zespoły” na karcie umowy (wszystkie rodzaje, obok „Sprawa EZD”).
+ * includes/_contract_teams_panel.php — sekcja „Zespoły” na karcie umowy (zlecenie i wolontariat — TeamService::CONTRACT_TYPES;
+ * przy innych rodzajach tylko dawne powiązania, jeśli są, bez możliwości przypięcia).
  * Wymaga w zasięgu: $TYPE (rodzaj umowy), $id (id umowy). Dane: modules/teams/lib/TeamService.php.
  *   • zespoły przypięte do umowy (contract_teams, z zakresem) — przypięcie/odpięcie: lider zespołu albo administrator;
  *   • zespoły, w których umowa jest podstawą udziału członka (task_team_members.contract_*).
@@ -19,7 +20,9 @@ try {
          JOIN task_teams t ON t.id=m.team_id JOIN users u ON u.id=m.user_id
          WHERE m.contract_type=? AND m.contract_id=? ORDER BY t.name", [$_ct_type, $_ct_id]);
     $_ct_linked = array_flip(array_map('intval', array_column($_ct_teams, 'id')));
-    $_ct_options = array_values(array_filter(TeamService::list(),
+    $_ct_allowed = TeamService::allowsContract($_ct_type);
+    if (!$_ct_allowed && !$_ct_teams && !$_ct_basis) return;
+    $_ct_options = !$_ct_allowed ? [] : array_values(array_filter(TeamService::list(),
         fn($t) => $t['status'] !== 'archived' && !isset($_ct_linked[(int)$t['id']]) && TeamService::canManage((int)$t['id'])));
 } catch (\Throwable $e) {
     return;

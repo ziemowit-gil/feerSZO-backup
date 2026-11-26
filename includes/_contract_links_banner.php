@@ -10,6 +10,6 @@ if ($_cl_missing <= 0) return;
 ?>
 <div class="alert alert-warning d-flex align-items-center gap-2 flex-wrap py-2" role="status">
   <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
-  <span><strong><?= $_cl_missing ?></strong> <?= $_cl_missing === 1 ? 'aktywna umowa nie ma' : 'aktywnych umów nie ma' ?> przypisanego kontaktu, jednostki albo obszaru Zadań.</span>
+  <span><strong><?= $_cl_missing ?></strong> <?= $_cl_missing === 1 ? 'aktywna umowa (zlecenie, wolontariat) nie ma' : 'aktywnych umów (zlecenie, wolontariat) nie ma' ?> przypisanego kontaktu, jednostki albo obszaru Zadań.</span>
   <a href="<?= APP_URL ?>/contracts/przypisania.php" class="btn btn-sm btn-warning ms-auto">Uzupełnij przypisania</a>
 </div>

@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * modules/contract_links/lib/ContractLinks.php — przypisanie aktywnych umów (2026-11-26).
  *
- * Każda aktywna umowa (dowolny rodzaj umowy_*) powinna mieć: kontakt (konto osoby w SZO), jednostkę (Struktura,
+ * Każda aktywna umowa zlecenia i wolontariacka (TYPES — tylko te rodzaje przypisujemy do jednostek) powinna mieć: kontakt (konto osoby w SZO), jednostkę (Struktura,
  * org_units) i obszar Zadań (task_workspaces). Tabela contract_links (contract_type + contract_id, jak contract_access).
  *   • podpowiedzi: osoba po e-mailu / M365 z umowy (jak TeamService), jednostka z umowy (org_unit_id) albo główna
  *     jednostka osoby (org_members), obszar — obszar zespołu osoby albo jedyny obszar jednostki;
@@ -19,7 +19,15 @@ require_once dirname(__DIR__, 3) . '/modules/contract_status/lib/contractStatuse
 
 final class ContractLinks
 {
+    /** Rodzaje umów przypisywane do jednostek (i zespołów — TeamService::CONTRACT_TYPES): tylko zlecenie i wolontariat. */
+    public const TYPES = ['zlecenie', 'wolontariat'];
+
     private static bool $migrated = false;
+
+    public static function allows(string $type): bool
+    {
+        return in_array($type, self::TYPES, true);
+    }
 
     public static function migrate(): void
     {
@@ -64,6 +72,7 @@ final class ContractLinks
         foreach (db_all("SELECT * FROM contract_links") as $l) $links[$l['contract_type'] . ':' . $l['contract_id']] = $l;
         $out = [];
         foreach (CONTRACT_TYPES as $type => $label) {
+            if (!self::allows($type)) continue;
             $table = table_for_type($type);
             $c = self::cols($table);
             if (!$c) continue;
@@ -153,6 +162,7 @@ final class ContractLinks
 
     public static function save(string $type, int $id, array $data, string $source, int $by): void
     {
+        if (!self::allows($type)) return;
         self::migrate();
         $cur = db_one("SELECT * FROM contract_links WHERE contract_type=? AND contract_id=?", [$type, $id]) ?: [];
         $val = fn(string $k) => array_key_exists($k, $data) ? ((int)$data[$k] ?: null) : (isset($cur[$k]) ? ((int)$cur[$k] ?: null) : null);
@@ -203,7 +213,7 @@ final class ContractLinks
         if (!$contracts) return ['error' => 'Nie ma aktywnych umów do podziału.'];
 
         $system = "Jesteś doradcą organizacyjnym fundacji (NGO) w Polsce. Na podstawie struktury (jednostki, obszary zadań, zespoły) "
-            . "i listy AKTYWNYCH umów (bez danych osobowych) zaproponuj czytelny podział: do jakiej jednostki i jakiego obszaru zadań "
+            . "i listy AKTYWNYCH umów zlecenia i wolontariackich (bez danych osobowych) zaproponuj czytelny podział: do jakiej jednostki i jakiego obszaru zadań "
             . "przypisać każdą umowę, oraz czy brakuje jednostek lub obszarów (np. dla projektu/grantu albo grupy zadań). "
             . "Używaj istniejących id, gdy pasują. Nowe jednostki/obszary proponuj oszczędnie i tylko z uzasadnieniem. "
             . "Odpowiedz WYŁĄCZNIE poprawnym JSON (bez komentarzy) wg schematu: "
@@ -247,7 +257,7 @@ final class ContractLinks
         $n = 0;
         foreach ($p['przypisania'] ?? [] as $a) {
             $k = (string)($a['klucz'] ?? '');
-            if (!isset($want[$k]) || !preg_match('/^([a-z_]+):(\d+)$/', $k, $m) || !isset(CONTRACT_TYPES[$m[1]])) continue;
+            if (!isset($want[$k]) || !preg_match('/^([a-z_]+):(\d+)$/', $k, $m) || !self::allows($m[1])) continue;
             $data = [];
             if (!empty($a['jednostka_id']) && isset($unitIds[(int)$a['jednostka_id']])) $data['unit_id'] = (int)$a['jednostka_id'];
             if (!empty($a['obszar_id']) && isset($wsIds[(int)$a['obszar_id']])) $data['workspace_id'] = (int)$a['obszar_id'];

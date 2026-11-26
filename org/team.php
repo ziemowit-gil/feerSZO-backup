@@ -283,7 +283,8 @@ document.addEventListener('click', function (e) {
         $linked = array_flip(array_map(fn($c) => $c['contract_type'] . ':' . $c['id'], array_filter($contracts, fn($c) => $c['source'] === 'zespol')));
         foreach (all_contracts_registry() as $r) {
             $k = $r['contract_type'] . ':' . $r['id'];
-            if (!isset($linked[$k]) && contractStatusGroup((string)$r['status']) !== 'cancelled') $linkable[] = $r;
+            if (!isset($linked[$k]) && TeamService::allowsContract((string)$r['contract_type'])
+                && contractStatusGroup((string)$r['status']) !== 'cancelled') $linkable[] = $r;
         }
     }
 ?>
@@ -295,7 +296,7 @@ document.addEventListener('click', function (e) {
     <input type="hidden" name="team_id" value="<?= $id ?>">
     <div class="team-form-error alert alert-danger py-2 small col-12" role="alert" tabindex="-1" hidden></div>
     <div class="col-md-6">
-      <label class="form-label small" for="cl-contract">Umowa (z Rejestru Umów)</label>
+      <label class="form-label small" for="cl-contract">Umowa zlecenia lub wolontariacka (z Rejestru Umów)</label>
       <select id="cl-contract" name="contract_key" class="form-select form-select-sm" required>
         <option value="">— wybierz —</option>
         <?php foreach ($linkable as $r): ?><option value="<?= h($r['contract_type'] . ':' . $r['id']) ?>"><?= h($r['nr_rejestru'] . ' · ' . $r['contract_type_label'] . ' · ' . $r['strona']) ?></option><?php endforeach; ?>

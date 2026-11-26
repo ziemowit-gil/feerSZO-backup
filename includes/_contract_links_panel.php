@@ -1,9 +1,10 @@
 <?php
 /**
- * includes/_contract_links_panel.php — sekcja „Przypisanie” na karcie umowy (wszystkie rodzaje, obok „Zespoły”).
+ * includes/_contract_links_panel.php — sekcja „Przypisanie” na karcie umowy (tylko zlecenie i wolontariat — ContractLinks::TYPES).
  * Wymaga $TYPE i $id. Kontakt (konto SZO), jednostka, obszar Zadań; edycja — administrator (contracts/przypisania.php, op=save).
  */
 require_once dirname(__DIR__) . '/modules/contract_links/lib/ContractLinks.php';
+if (!ContractLinks::allows((string)$TYPE)) return;
 try {
     ContractLinks::migrate();
     $_cl_type = (string)$TYPE; $_cl_id = (int)$id;
