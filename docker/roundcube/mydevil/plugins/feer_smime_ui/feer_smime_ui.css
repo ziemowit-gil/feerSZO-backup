@@ -1,0 +1,119 @@
+/**
+ * feer_smime_ui — kłódka S/MIME w podglądzie i zwarta sekcja S/MIME w oknie pisania (Elastic).
+ * Kolory: zielony #15803d i czerwony #b91c1c mają kontrast > 4.5:1 na białym (WCAG 1.4.11 wymaga 3:1).
+ */
+
+/* ── Podgląd wiadomości ──────────────────────────────────────────────────── */
+
+.feer-smime-lockbox {
+  display: inline-flex;
+  align-items: center;
+  margin: .25rem 0 0;
+}
+
+.feer-smime-lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  line-height: 1;
+}
+.feer-smime-lock .feer-smime-icon { display: block; }
+.feer-smime-lock.feer-smime-ok      { color: #15803d; }
+.feer-smime-lock.feer-smime-problem { color: #b91c1c; }
+.feer-smime-lock:hover              { background: #f1f5f9; border-color: #e2e8f0; }
+.feer-smime-lock:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+}
+.feer-smime-lock[aria-disabled="true"] { cursor: default; }
+.feer-smime-lock .voice {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Gdy jest kłódka: plakietka mimeshield i duża ramka nad treścią znikają; ramka wraca po kliknięciu.
+   :has() działa od razu (bez mignięcia), klasa z JS to zapas dla starszych przeglądarek. */
+html.feer-smime-has-lock .mimeshield-badge,
+body:has(.feer-smime-lock) .mimeshield-badge { display: none !important; }
+
+html.feer-smime-has-lock:not(.feer-smime-open) .mimeshield-status,
+html:not(.feer-smime-open) body:has(.feer-smime-lock) .mimeshield-status { display: none !important; }
+
+html.feer-smime-open .mimeshield-status {
+  border-radius: 8px;
+  font-size: .9rem;
+}
+
+html.dark-mode .feer-smime-lock.feer-smime-ok      { color: #4ade80; }
+html.dark-mode .feer-smime-lock.feer-smime-problem { color: #f87171; }
+html.dark-mode .feer-smime-lock:hover { background: #1e293b; border-color: #334155; }
+
+/* ── Okno pisania: sekcja S/MIME w panelu „Opcje i załączniki” ───────────── */
+
+#mimeshield-compose {
+  margin: .5rem 0 1rem;
+  padding: .75rem .9rem .6rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+#mimeshield-compose legend {
+  float: none;
+  width: auto;
+  margin: 0 0 .35rem;
+  padding: 0;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #1e3a8a;
+  border: 0;
+}
+#mimeshield-compose .form-group.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  padding: .3rem 0;
+}
+#mimeshield-compose .form-group.row > .col-form-label,
+#mimeshield-compose .form-group.row > .form-check {
+  flex: 0 0 auto;
+  max-width: none;
+  width: auto;
+  padding: 0;
+}
+
+/* Certyfikat: jedna linijka z nazwą. Wystawcę i datę ważności chowamy tylko przy stanie .ok —
+   gdy certyfikat kończy się w ciągu 30 dni, mimeshield.js daje .warning i obie linijki zostają. */
+#mimeshield-status .mimeshield-label { display: none; }
+#mimeshield-status .mimeshield-cert .ok .mimeshield-sub { display: none; }
+#mimeshield-status .mimeshield-cert .ok {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .85rem;
+  color: #15803d;
+}
+#mimeshield-status .mimeshield-cert .warning,
+#mimeshield-status > .warning,
+#mimeshield-recipients .warning {
+  font-size: .85rem;
+  color: #b91c1c;
+}
+#mimeshield-status,
+#mimeshield-recipients { margin-top: .25rem; }
+#mimeshield-recipients .mimeshield-label {
+  font-size: .8rem;
+  color: #64748b;
+}

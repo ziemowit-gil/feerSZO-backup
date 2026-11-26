@@ -76,12 +76,12 @@ $config['plugins'] = [
     'managesieve',           // filtry i autoodpowiedź (tylko dPoczta; sdata nie ma ManageSieve)
     'nextcloud_attachments', // duże załączniki jako link do chmury
     'feer_cloud_save',       // połączenie z chmurą (Login Flow, Logto) + „Zapisz w chmurze” (własny)
-    'feer_compose',          // okno pisania jak w Outlooku, S/MIME przy Wyślij (własny)
     'contextmenu',           // menu pod prawym przyciskiem
     'thunderbird_labels',    // etykiety jak w Thunderbirdzie
     'persistent_login',      // „Zapamiętaj mnie” (tokeny, 7 dni)
     'twofactor_gauthenticator', // 2FA: kod TOTP z aplikacji (dobrowolne; GitHub b6afa8f44b)
     'mimeshield',            // S/MIME: podpis, weryfikacja, szyfrowanie (takenek/mimeshield 1.0.3)
+    'feer_smime_ui',         // kłódka S/MIME (zielona/czerwona) zamiast opisów mimeshield, zwarta sekcja w oknie pisania (PO mimeshield; własny)
     'feer_cert',             // certyfikaty S/MIME z urzędu FEER (Ustawienia → Certyfikat FEER; własny)
     'feer_qsign',            // podpis certyfikatem kwalifikowanym przez SzoCert + PEM-HEART (PO mimeshield; własny)
     'identity_select',       // tożsamość nadawcy wg adresu, na który przyszła wiadomość

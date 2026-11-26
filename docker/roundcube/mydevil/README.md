@@ -151,7 +151,7 @@ Brak CRL/unieważniania — do zrobienia, gdyby było potrzebne (kolumna `revoke
 
 ## Podpis kwalifikowany (feer_qsign)
 
-Opcja „Podpisz certyfikatem kwalifikowanym” w oknie pisania (w pasku S/MIME, obok przełączników
+Opcja „Podpisz certyfikatem kwalifikowanym” w oknie pisania (w karcie S/MIME, obok przełączników
 mimeshield). Klucz nie trafia na serwer: podpis składa PEM-HEART Signature (rSign CenCert) na komputerze
 użytkownika przez agenta SzoCert (`client-apps/szocert`, `szocert podpis`, 127.0.0.1:52118).
 Wynik to S/MIME `multipart/signed` z podpisem CAdES (RSA-SHA512 ze znacznikiem czasu CenCert).
@@ -182,11 +182,23 @@ Użytkownik raz: `szocert podpis install` (kopia programu i LaunchAgent). W PEM-
 podpisie: plik `wiadomosc.eml`, format CAdES, podpis zewnętrzny, zapis w tym samym folderze.
 Cofnięcie: usunąć `feer_qsign` z `plugins` i dowiązanie `app/plugins/feer_qsign`.
 
-## Okno pisania (feer_compose)
+## S/MIME w podglądzie i oknie pisania (feer_smime_ui)
 
-„Wyślij” na górze obok pól Od/Do/Temat (jak w Outlooku), zwarte etykiety, edytor do dołu okna,
-S/MIME (mimeshield `#mimeshield-compose`) przeniesione do paska pod tematem, przy braku certyfikatu
-komunikat i link „Wydaj certyfikat FEER”. Przenosi oryginalne elementy DOM; style w feer_theme.css.
+Podgląd wiadomości: zamiast plakietki mimeshield z opisem i dużej ramki nad treścią jest sama kłódka
+przy nagłówkach. Zielona zamknięta (z ✓) oznacza podpis prawidłowy, certyfikat zaufany, adres zgodny
+i poprawne odszyfrowanie (`VerificationResult::level() === 'ok'`). Czerwona otwarta (z !) to każdy
+inny stan: zły podpis, niezaufany urząd, niezgodny adres, błąd odszyfrowania, wiadomość zaszyfrowana
+bez podpisu albo podpisana tylko w części. Bez S/MIME nie ma nic. Kliknięcie kłódki pokazuje
+szczegóły mimeshield. Wyłączone sprawdzanie unieważnień (`mimeshield_revocation = 'off'`) nie
+czerwieni kłódki, informacja o nim zostaje w szczegółach. Wtyczka czyta wewnętrzne API mimeshield
+1.0.3 (`services()->incoming()->statuses()`): po aktualizacji mimeshield sprawdzić podgląd
+podpisanej wiadomości. Wyjątek = brak kłódki i widoczna zwykła plakietka mimeshield.
+
+Okno pisania: standardowy układ Elastic, S/MIME w panelu „Opcje i załączniki” jako zwarta karta.
+Przy certyfikacie w porządku widać tylko jego nazwę; wystawca i data ważności pokazują się, gdy
+certyfikat wygasa w ciągu 30 dni. Wcześniejszy układ „jak w Outlooku” (`feer_compose`) jest
+wyłączony (nie ma go w `plugins`; kod został w repo). Cofnięcie: dopisać `feer_compose` do
+`plugins`, usunąć `feer_smime_ui`.
 
 ## Wygląd
 
