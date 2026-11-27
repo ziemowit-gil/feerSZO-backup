@@ -143,6 +143,8 @@ final class SsoController
         $id = (int)($_POST['id'] ?? 0);
         // type=person — „Resetuj dane dostępowe” z karty osoby (persons/view.php, polecenie 2026-11-27): tylko do=reset
         if ($type === 'person' && $id > 0) return $this->personReset($id);
+        // type=user — to samo z Administracja → Użytkownicy (okno „Ustaw hasło”), do=auto: reset albo założenie konta
+        if ($type === 'user' && $id > 0) return $this->personReset($id, 'user');
         if (!in_array($type, self::CONTRACT_TYPES, true) || $id <= 0) return Router::redirect(APP_URL . '/tozsamosc/index.php');
         // ret=contract — karta „Hasła” na stronie umowy (zakładka M365) wraca na umowę, a nie do Zarządzania dostępem
         $back = ($_POST['ret'] ?? '') === 'contract'
@@ -192,12 +194,23 @@ final class SsoController
      * „Resetuj dane dostępowe” z karty osoby (persons/view.php): jedno nowe hasło do chmury i logowania jednokrotnego
      * (SsoAccounts::resetPassword), opcjonalnie SMS. Wynik pokazuje raz modules/sso_logto/view/resetAccessButton.php (ctx „person:id”).
      */
-    private function personReset(int $id): ?string
+    private function personReset(int $id, string $src = 'person'): ?string
     {
-        $back = rtrim(APP_URL, '/') . '/persons/view.php?id=' . $id;
-        $row = db_one("SELECT * FROM persons WHERE id=?", [$id]);
-        if (!$row) return $this->flashGlobal(rtrim(APP_URL, '/') . '/persons/index.php', 'danger', 'Nie znaleziono osoby.');
+        if ($src === 'user') {   // konto SZO: imię i nazwisko, e-mail, telefon z tabeli users
+            $back = rtrim(APP_URL, '/') . '/admin/users.php?ra=' . $id;
+            $u = db_one("SELECT id, name, email, phone_number FROM users WHERE id=?", [$id]);
+            if (!$u) return $this->flashGlobal(rtrim(APP_URL, '/') . '/admin/users.php', 'danger', 'Nie znaleziono użytkownika.');
+            $row = ['imie_nazwisko' => (string)$u['name'], 'email' => (string)$u['email'], 'telefon' => (string)($u['phone_number'] ?? '')];
+        } else {
+            $back = rtrim(APP_URL, '/') . '/persons/view.php?id=' . $id;
+            $row = db_one("SELECT * FROM persons WHERE id=?", [$id]);
+            if (!$row) return $this->flashGlobal(rtrim(APP_URL, '/') . '/persons/index.php', 'danger', 'Nie znaleziono osoby.');
+        }
         $do = (string)($_POST['do'] ?? '');
+        if ($do === 'auto') {   // okno w Użytkownikach: jest konto — nowe hasło, nie ma — załóż
+            $acc = ($em = strtolower(trim((string)($row['email'] ?? '')))) !== '' ? SsoAccounts::get($em) : null;
+            $do = $acc && (!empty($acc['logto_id']) || !empty($acc['cloud_uid'])) ? 'reset' : (SsoConfig::logtoConfigured() ? 'create' : 'cloud');
+        }
         if (!in_array($do, ['reset', 'create', 'cloud'], true)) return $this->flashGlobal($back, 'danger', 'Nieznana czynność.');
         $person = self::personFromContract($row);
         if ($person['email'] === '') return $this->flashGlobal($back, 'warning', 'Osoba nie ma adresu e-mail. Dopisz go, a potem załóż konto.');
@@ -209,7 +222,7 @@ final class SsoController
         } catch (\Throwable $e) { return $this->flashGlobal($back, 'danger', ($do === 'reset' ? 'Reset danych dostępowych: ' : 'Zakładanie konta: ') . $e->getMessage()); }
         $res['name'] = $person['name'];
         $res['sms'] = !empty($_POST['sms']) && $res['password'] ? $this->smsCredentials($person['phone'], $res) : '';
-        $_SESSION[self::K_RESULT] = ['ctx' => 'person:' . $id, 'rows' => [$res]];
+        $_SESSION[self::K_RESULT] = ['ctx' => $src . ':' . $id, 'rows' => [$res]];
         return Router::redirect($back . '#raResult');
     }
 

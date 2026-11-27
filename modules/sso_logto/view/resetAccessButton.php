@@ -7,12 +7,12 @@
  * Tylko administrator (POST /ssoadmin/osoba jest w grupie role:admin).
  *
  * Zmienne: $__raType ('wolontariat'|'zlecenie'|'dzielo'|'person'), $__raId (int), $__raRow (wiersz umowy albo osoby),
- * $__raOnly = 'result' — zamiast przycisku sam wynik (karta osoby, pod nagłówkiem).
+ * $__raOnly = 'result' — zamiast przycisku sam wynik (karta osoby; 'user' — Administracja → Użytkownicy, admin/users.php?ra=id).
  * Wynik: przy umowie pokazuje go karta „Logowanie jednokrotne i chmura” (zakładka M365, ret=contract), przy osobie — ten plik (ctx „person:id”).
  * Okno jest przenoszone do <body>, bo pasek akcji nagłówka nie powinien być przodkiem okna position:fixed.
  */
 if (!function_exists('is_admin') || !is_admin()) return;
-if (!in_array((string)($__raType ?? ''), ['wolontariat', 'zlecenie', 'dzielo', 'person'], true) || (int)($__raId ?? 0) <= 0) return;
+if (!in_array((string)($__raType ?? ''), ['wolontariat', 'zlecenie', 'dzielo', 'person', 'user'], true) || (int)($__raId ?? 0) <= 0) return;
 require_once dirname(__DIR__) . '/logic/SsoController.php';
 if (!SsoConfig::logtoConfigured() && !SsoConfig::cloudConfigured()) return;
 
@@ -20,7 +20,7 @@ $__raIsPerson = $__raType === 'person';
 
 // ── Tryb „wynik”: nowe hasło po resecie z karty osoby, pokazane raz ──
 if (($__raOnly ?? '') === 'result') {
-    $__raRes = $__raIsPerson ? SsoController::takeResult('person:' . (int)$__raId) : null;
+    $__raRes = in_array($__raType, ['person', 'user'], true) ? SsoController::takeResult($__raType . ':' . (int)$__raId) : null;
     if (!$__raRes) return;
     ?>
 <div class="alert alert-warning" role="status" tabindex="-1" id="raResult">

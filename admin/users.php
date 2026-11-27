@@ -563,6 +563,17 @@ try {
     }
 } catch (\Throwable $e) {}
 
+// Logowanie jednokrotne i chmura (polecenie 2026-11-27): kto ma konto — do okna „Ustaw hasło” (reset albo propozycja założenia)
+$sso_on = false; $sso_has = [];
+try {
+    require_once dirname(__DIR__) . '/modules/sso_logto/logic/SsoController.php';
+    $sso_on = SsoConfig::logtoConfigured() || SsoConfig::cloudConfigured();
+    if ($sso_on) {
+        SsoAccounts::get('x@x.invalid');   // utworzy tabelę, jeśli jej nie ma
+        foreach (db_all("SELECT email FROM sso_accounts WHERE COALESCE(logto_id,'')<>'' OR COALESCE(cloud_uid,'')<>''") as $sa) $sso_has[strtolower((string)$sa['email'])] = true;
+    }
+} catch (\Throwable $e) { $sso_on = false; }
+
 // Stats
 $stats = db_one("SELECT
     COUNT(*) AS total,
@@ -632,6 +643,10 @@ include dirname(__DIR__) . '/tozsamosc/_head.php';
 .tz-users-topbar h1{font-size:1.3rem;font-weight:700;color:#111827;margin:0;display:flex;align-items:center;gap:.55rem}
 </style>
 
+<?php if (($ra = (int)($_GET['ra'] ?? 0)) > 0 && $sso_on) {   // wynik resetu / założenia konta z okna „Ustaw hasło”, pokazany raz
+    $__raType = 'user'; $__raId = $ra; $__raRow = []; $__raOnly = 'result';
+    include dirname(__DIR__) . '/modules/sso_logto/view/resetAccessButton.php';
+} ?>
 <div class="tz-users-topbar">
   <h1><i class="bi bi-people" style="color:var(--tz)" aria-hidden="true"></i> Zarządzanie użytkownikami</h1>
   <div class="d-flex gap-2">
@@ -817,7 +832,10 @@ foreach ($users as $u) {
                       title="Resetuj / ustaw hasło"
                       data-bs-toggle="modal" data-bs-target="#passModal"
                       data-uid="<?= intval($u['id']) ?>"
-                      data-name="<?= h($u['name']) ?>">
+                      data-name="<?= h($u['name']) ?>"
+                      <?php $_sso_em = strtolower(trim((string)($u['email'] ?? ''))); ?>
+                      data-sso="<?= $_sso_em === '' || !filter_var($_sso_em, FILTER_VALIDATE_EMAIL) ? 'noemail' : (isset($sso_has[$_sso_em]) ? 'has' : 'none') ?>"
+                      data-email="<?= h($_sso_em) ?>">
                 <i class="bi bi-key"></i>
               </button>
               <?php
@@ -1258,6 +1276,30 @@ unset($u);
             </form>
           </div>
         </div>
+        <?php if ($sso_on): /* to samo co „Resetuj dane dostępowe” na umowie i karcie osoby (modules/sso_logto/view/resetAccessButton.php) */ ?>
+        <div class="card border-danger border-opacity-50 mt-3">
+          <div class="card-body py-2 px-3">
+            <form method="post" action="<?= h(rtrim(APP_URL, '/') . '/ssoadmin/osoba') ?>" id="formSsoReset">
+              <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
+              <input type="hidden" name="type" value="user">
+              <input type="hidden" name="id" id="ssoUserId" value="">
+              <input type="hidden" name="do" value="auto">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="bi bi-person-badge text-danger fs-4" aria-hidden="true"></i>
+                <div>
+                  <div class="fw-semibold" id="ssoResetH">Dane dostępowe: logowanie jednokrotne i chmura</div>
+                  <div class="text-muted small" id="ssoResetD"></div>
+                </div>
+              </div>
+              <div class="form-check small mb-1" id="ssoCloudWrap"><input class="form-check-input" type="checkbox" name="cloud" value="1" id="ssoCloud" checked>
+                <label class="form-check-label" for="ssoCloud">Załóż też konto w chmurze plików (to samo hasło)</label></div>
+              <div class="form-check small mb-2"><input class="form-check-input" type="checkbox" name="sms" value="1" id="ssoSms" checked>
+                <label class="form-check-label" for="ssoSms">Wyślij login i hasło SMS-em (gdy jest numer telefonu)</label></div>
+              <button type="submit" class="btn btn-sm w-100" id="ssoResetBtn" aria-describedby="ssoResetD"></button>
+            </form>
+          </div>
+        </div>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -1269,6 +1311,20 @@ document.getElementById('passModal').addEventListener('show.bs.modal', function(
     document.getElementById('passModalUserName').textContent = btn.dataset.name;
     document.getElementById('spUserId').value = btn.dataset.uid;
     document.getElementById('rpUserId').value = btn.dataset.uid;
+    var f = document.getElementById('formSsoReset');
+    if (f) {   // reset danych dostępowych albo — przy braku konta — propozycja założenia (polecenie 2026-11-27)
+        var st = btn.dataset.sso, b = document.getElementById('ssoResetBtn'), d = document.getElementById('ssoResetD');
+        document.getElementById('ssoUserId').value = btn.dataset.uid;
+        document.getElementById('ssoCloudWrap').hidden = st !== 'none';
+        b.disabled = st === 'noemail';
+        b.className = 'btn btn-sm w-100 ' + (st === 'has' ? 'btn-danger' : 'btn-primary');
+        b.innerHTML = st === 'has' ? '<i class="bi bi-key" aria-hidden="true"></i> Resetuj dane dostępowe'
+                    : '<i class="bi bi-person-plus" aria-hidden="true"></i> Załóż konto i pokaż hasło';
+        d.textContent = st === 'has' ? 'Jedno nowe hasło do logowania jednokrotnego i chmury (' + btn.dataset.email + '). Poczta bez zmian.'
+                      : st === 'none' ? 'Brak konta, więc nie ma czego resetować. Możesz je teraz założyć (login ' + btn.dataset.email + '). Hasło zobaczysz raz.'
+                      : 'Brak adresu e-mail — dopisz go, żeby założyć konto.';
+        f.onsubmit = function () { return confirm(st === 'has' ? 'Nadać nowe hasło? Dotychczasowe przestanie działać.' : 'Założyć konto dla ' + btn.dataset.email + '?'); };
+    }
 });
 
 // ── M365 auto-match ──────────────────────────────────────────────────────────
